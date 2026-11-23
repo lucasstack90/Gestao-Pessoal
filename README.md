@@ -20,7 +20,8 @@ mas aí os dados ficam salvos só naquele navegador.
 
 | Pilar | O que acompanha |
 |---|---|
-| Visão geral | Pilares em dia, saldo do mês, páginas e treinos da semana, gráfico de evolução, calendário e tabela de status |
+| Tarefas | Tarefas do dia para marcar: rotina fixa (todo dia, dias úteis ou dias escolhidos) e tarefas avulsas de um dia; sequência de dias com tudo feito e % dos últimos 7 dias |
+| Visão geral | Tarefas de hoje, pilares em dia, saldo do mês, páginas e treinos da semana, gráfico de evolução, calendário e tabela de status |
 | 01 · Financeiro | Fatura do mês (o arquivo fica guardado), receita x despesas, gastos por categoria, metas com aportes em R$ |
 | 02 · Estudos | Meta de páginas por dia, sequência, últimos 14 dias, livros com previsão de término |
 | 03 · Emocional | Check-in semanal, nota de 1 a 5 por pilar, insights e 3 perguntas fixas |
@@ -36,5 +37,5 @@ mas aí os dados ficam salvos só naquele navegador.
 ## Como os dados são guardados
 
 No Claude, cada pessoa logada tem uma área privada no banco do Artifact (`data/users/<id>`), dividida em:
-`config` (metas, livros, recordes, categorias, metas financeiras), `d-AAAA-MM` (registros diários do mês),
+`config` (metas, rotina fixa, livros, recordes, categorias, metas financeiras), `d-AAAA-MM` (registros diários do mês, incluindo tarefas marcadas),
 `f-AAAA-MM` (finanças do mês) e `w-AAAA` (check-ins semanais do ano).

@@ -1,6 +1,6 @@
 <title>Painel da Vida</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Painel pessoal para acompanhar quatro pilares da vida: financeiro, estudos, emocional e saúde.">
+<meta name="description" content="Painel pessoal com tarefas do dia e quatro pilares da vida: financeiro, estudos, emocional e saúde.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
@@ -474,6 +474,30 @@ textarea.input { resize: vertical; min-height: 92px; line-height: 1.5; }
 a.link { color: var(--ink); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
+/* ---------- Tarefas ---------- */
+.task { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.task:last-of-type { border-bottom: 0; }
+.check {
+  width: 26px; height: 26px; border-radius: 8px; border: 1.5px solid var(--goal); background: transparent;
+  display: grid; place-items: center; cursor: pointer; color: transparent; flex: none; padding: 0; transition: background .15s, border-color .15s;
+}
+.check:hover { border-color: var(--ink-2); }
+.check .ic { width: 15px; height: 15px; stroke-width: 2.6; }
+.check.on { background: var(--dark); border-color: var(--dark); color: var(--on-dark); }
+.task-name { flex: 1; min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+.task.done .task-name { color: var(--ink-3); text-decoration: line-through; }
+.tag { font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--soft); color: var(--ink-2); white-space: nowrap; }
+.tag.soft { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); }
+.wd { display: flex; gap: 4px; flex-wrap: wrap; }
+.wd button { border: 0; border-radius: 8px; padding: 5px 7px; font-size: 11px; font-weight: 700; background: var(--soft); color: var(--ink-3); cursor: pointer; }
+.wd button.on { background: var(--dark); color: var(--on-dark); }
+.task-form { display: grid; grid-template-columns: minmax(0, 1fr) 140px 140px auto; gap: 8px; align-items: center; }
+select.input { cursor: pointer; }
+@media (max-width: 720px) { .task-form { grid-template-columns: 1fr 1fr; } .task-form .input:first-child { grid-column: 1 / -1; } .task-form .btn { grid-column: 1 / -1; justify-content: center; } }
+@media (max-width: 560px) { .task .tag:not(.soft) { display: none; } }
+.routine-row { flex-wrap: wrap; row-gap: 10px; }
+.routine-row .grow { flex: 1 1 220px; }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -523,6 +547,7 @@ function defaultState() {
     weeks: {},  // segunda 'AAAA-MM-DD' -> { feeling, good, insights, q1, q2, q3, ratings }
     records: [],
     books: [],
+    tasks: [],  // rotina fixa: { id, name, pillar, days: [0-6, seg=0], from: 'AAAA-MM-DD' }
     finance: { categories: ['Moradia', 'Alimentação', 'Transporte', 'Lazer', 'Assinaturas e cursos'], months: {}, goals: [] },
   };
 }
@@ -543,6 +568,20 @@ function sampleState() {
     };
   }
   s.days[D.key(today)] = { trained: true, sleep: 7, energy: 3, pages: 12, habit: false };
+  const from = D.key(D.add(today, -30));
+  s.tasks = [
+    { id: uid(), name: 'Beber 2 litros de água', pillar: 'saude', days: [0, 1, 2, 3, 4, 5, 6], from },
+    { id: uid(), name: 'Anotar os gastos do dia', pillar: 'financeiro', days: [0, 1, 2, 3, 4, 5, 6], from },
+    { id: uid(), name: 'Ler antes de dormir', pillar: 'estudos', days: [0, 1, 2, 3, 4, 5, 6], from },
+    { id: uid(), name: 'Planejar o dia seguinte', pillar: 'emocional', days: [0, 1, 2, 3, 4], from },
+  ];
+  for (let i = 30; i >= 1; i--) {
+    const day = s.days[D.key(D.add(today, -i))];
+    day.done = {};
+    s.tasks.forEach(t => { if (r() < (i <= 2 ? 1 : 0.75)) day.done[t.id] = true; });
+  }
+  s.days[D.key(today)].done = { [s.tasks[0].id]: true, [s.tasks[1].id]: true };
+  s.days[D.key(today)].todos = [{ id: uid(), name: 'Pagar a conta de luz', pillar: 'financeiro', done: false }, { id: uid(), name: 'Marcar consulta no dentista', pillar: 'saude', done: true }];
   const mon = D.monday(today);
   const refl = [
     ['Semana leve, consegui manter os treinos.', 'Acordar sem pressa ajudou muito.', 'Dormir antes das 23h'],
@@ -593,7 +632,7 @@ function normalize(raw) {
   s.settings = Object.assign(defaultState().settings, (raw && raw.settings) || {});
   s.finance = Object.assign(defaultState().finance, s.finance || {});
   ['days', 'weeks'].forEach(k => { if (!s[k] || typeof s[k] !== 'object') s[k] = {}; });
-  ['records', 'books'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
+  ['records', 'books', 'tasks'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   if (!s.finance.months || typeof s.finance.months !== 'object') s.finance.months = {};
   if (!Array.isArray(s.finance.goals)) s.finance.goals = [];
   if (!Array.isArray(s.finance.categories)) s.finance.categories = [];
@@ -604,7 +643,7 @@ function normalize(raw) {
 const clone = o => JSON.parse(JSON.stringify(o));
 function toDocs(s) {
   const docs = {
-    config: { v: 2, sample: !!s.sample, settings: s.settings, records: s.records, books: s.books, categories: s.finance.categories, goals: s.finance.goals },
+    config: { v: 2, sample: !!s.sample, settings: s.settings, records: s.records, books: s.books, tasks: s.tasks, categories: s.finance.categories, goals: s.finance.goals },
   };
   Object.entries(s.days).forEach(([k, v]) => { const id = 'd-' + k.slice(0, 7); (docs[id] = docs[id] || { days: {} }).days[k] = v; });
   Object.entries(s.weeks).forEach(([k, v]) => { const id = 'w-' + k.slice(0, 4); (docs[id] = docs[id] || { weeks: {} }).weeks[k] = v; });
@@ -613,7 +652,7 @@ function toDocs(s) {
 }
 function fromDocs(docs) {
   const c = docs.config || {};
-  const s = normalize({ sample: c.sample, settings: c.settings, records: c.records, books: c.books, finance: { categories: c.categories, goals: c.goals, months: {} } });
+  const s = normalize({ sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, finance: { categories: c.categories, goals: c.goals, months: {} } });
   Object.entries(docs).forEach(([id, d]) => {
     if (id.startsWith('d-')) Object.assign(s.days, d.days || {});
     else if (id.startsWith('w-')) Object.assign(s.weeks, d.weeks || {});
@@ -759,6 +798,23 @@ const Calc = {
   expenses(mk) { const m = Store.state.finance.months[mk]; return m && m.categories ? Object.values(m.categories).reduce((a, b) => a + (+b || 0), 0) : 0; },
   goalPct(g) { return g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0; },
   mindAvg(wk) { const w = Store.state.weeks[wk]; if (!w || !w.ratings) return 0; const v = Object.values(w.ratings).filter(x => x > 0); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length) * 2 : 0; },
+  /* Tarefas de um dia: rotina fixa (que vale nesse dia da semana) + avulsas */
+  tasksFor(k) {
+    const S = Store.state, wd = (D.parse(k).getDay() + 6) % 7, day = S.days[k] || {}, done = day.done || {};
+    const rec = S.tasks.filter(t => (t.days || []).includes(wd) && (!t.from || t.from <= k))
+      .map(t => ({ id: t.id, name: t.name, pillar: t.pillar, rec: true, done: !!done[t.id] }));
+    const one = (day.todos || []).map(t => ({ ...t, rec: false }));
+    return [...rec, ...one];
+  },
+  taskStats(k) { const t = Calc.tasksFor(k); return { total: t.length, done: t.filter(x => x.done).length }; },
+  taskStreak() {
+    const full = k => { const s = Calc.taskStats(k); return s.total > 0 && s.done === s.total; };
+    let d = D.today();
+    if (!full(D.key(d))) d = D.add(d, -1);
+    let n = 0;
+    while (full(D.key(d)) && n < 3650) { n++; d = D.add(d, -1); }
+    return n;
+  },
   hasCheckin(w) { return !!w && (['feeling', 'good', 'insights', 'q1', 'q2', 'q3'].some(f => (w[f] || '').trim()) || Object.values(w.ratings || {}).some(x => x > 0)); },
 
   status() {
@@ -781,7 +837,7 @@ const Calc = {
 };
 
 /* ---------------- Componentes ---------------- */
-const UI = { state: { ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
+const UI = { state: { taskDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
 
 const ICONS = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -801,6 +857,7 @@ const ICONS = {
   check: '<polyline points="20 6 9 17 4 12"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  list: '<rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 9"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -862,6 +919,67 @@ function toast(msg) {
 
 /* ---------------- Telas ---------------- */
 const Views = {};
+
+function taskRow(t, date) {
+  const p = t.pillar ? pillar(t.pillar) : null;
+  return `<div class="task ${t.done ? 'done' : ''}">
+    <button class="check ${t.done ? 'on' : ''}" data-action="toggleTask" data-date="${date}" data-id="${t.id}" data-rec="${t.rec ? 1 : 0}" aria-pressed="${t.done}" aria-label="${t.done ? 'Desmarcar' : 'Marcar'}: ${esc(t.name)}">${icon('check')}</button>
+    <span class="task-name">${esc(t.name)}</span>
+    ${p ? `<span class="tag">${esc(p.name)}</span>` : ''}
+    ${t.rec ? '<span class="tag soft">rotina</span>' : removeBtn(`data-list="todos" data-date="${date}" data-id="${t.id}"`, 'Remover tarefa')}
+  </div>`;
+}
+function dayName(k) {
+  const today = D.today(), d = D.parse(k);
+  if (k === D.key(today)) return 'Hoje';
+  if (k === D.key(D.add(today, 1))) return 'Amanhã';
+  if (k === D.key(D.add(today, -1))) return 'Ontem';
+  return `${WEEKDAYS[(d.getDay() + 6) % 7]}, ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+Views.tarefas = () => {
+  const S = Store.state, ui = UI.state, today = D.today(), tk = D.key(today), k = ui.taskDay;
+  const list = Calc.tasksFor(k), pend = list.filter(t => !t.done), fin = list.filter(t => t.done);
+  const ts = Calc.taskStats(tk), streak = Calc.taskStreak();
+  const last7 = Calc.range(D.add(today, -6), 7).map(x => {
+    const kk = D.key(x), st = Calc.taskStats(kk);
+    return { label: kk === tk ? 'Hoje' : WEEKDAYS[(x.getDay() + 6) % 7], value: st.total ? Math.round((st.done / st.total) * 100) : 0, hl: kk === tk, total: st.total };
+  });
+  const withTasks = last7.filter(x => x.total > 0);
+  const weekPct = withTasks.length ? Math.round(withTasks.reduce((a, b) => a + b.value, 0) / withTasks.length) : 0;
+  const options = `<option value="">Sem pilar</option>${PILLARS.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}`;
+
+  const routine = S.tasks.length ? S.tasks.map(t => `<div class="row routine-row">
+      <div class="grow"><div class="row-title" style="font-weight:500">${esc(t.name)}</div>${t.pillar ? `<div class="row-sub">${esc(pillar(t.pillar).name)}</div>` : ''}</div>
+      <div class="wd" role="group" aria-label="Dias da semana de ${esc(t.name)}">${WEEKDAYS.map((w, i) => `<button class="${(t.days || []).includes(i) ? 'on' : ''}" data-action="toggleTaskDay" data-id="${t.id}" data-wd="${i}" aria-pressed="${(t.days || []).includes(i)}">${w}</button>`).join('')}</div>
+      ${removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina')}
+    </div>`).join('') : '<div class="empty">Nenhuma tarefa fixa. Ao adicionar uma tarefa, escolha "Todo dia" ou "Dias úteis" para ela se repetir.</div>';
+
+  return `
+  ${pageHeader({ eyebrow: 'Rotina', title: 'Tarefas do dia', desc: 'Marque o que você fez. As tarefas da rotina aparecem sozinhas em cada dia; as avulsas valem só para o dia escolhido.',
+    right: `${k !== tk ? `<button class="pill" data-action="setUi" data-key="taskDay" data-value="${tk}">Ir para hoje</button>` : ''}${navGroup({ label: dayName(k), prevAttrs: 'data-action="shiftTaskDay" data-delta="-1"', nextAttrs: 'data-action="shiftTaskDay" data-delta="1"' })}` })}
+  <div class="stats">
+    ${statCard({ label: 'Tarefas de hoje', value: ts.done, unit: `/ ${ts.total} feitas`, foot: footText(ts.total ? (ts.done === ts.total ? 'tudo feito hoje ✓' : `${ts.total - ts.done} ${ts.total - ts.done === 1 ? 'pendente' : 'pendentes'}`) : 'nenhuma tarefa para hoje'), dark: true })}
+    ${statCard({ label: 'Dias com tudo feito', value: streak, unit: streak === 1 ? 'dia seguido' : 'dias seguidos' })}
+    ${statCard({ label: 'Últimos 7 dias', value: `${weekPct}%`, foot: footText('média de tarefas concluídas') })}
+    ${statCard({ label: 'Rotina fixa', value: S.tasks.length, unit: S.tasks.length === 1 ? 'tarefa' : 'tarefas' })}
+  </div>
+  <div class="grid g-21">
+    ${card({ title: k === tk ? 'Tarefas de hoje' : `Tarefas · ${dayName(k)}`, sub: list.length ? `${fin.length} de ${list.length} concluídas` : 'Nenhuma tarefa neste dia',
+      body: `${list.length ? `<div style="margin-bottom:10px">${progress((fin.length / list.length) * 100, 'thick')}</div>` : ''}
+        ${pend.map(t => taskRow(t, k)).join('')}
+        ${fin.length ? `<div class="field-label" style="margin:14px 0 2px">Concluídas</div>${fin.map(t => taskRow(t, k)).join('')}` : ''}
+        ${!list.length ? '<div class="empty">Adicione a primeira tarefa abaixo.</div>' : ''}
+        <form class="task-form card-foot" data-submit="addTask">
+          <input class="input" name="name" placeholder="Nova tarefa (ex: beber 2L de água)" required maxlength="100" aria-label="Nova tarefa">
+          <select class="input" name="pillar" aria-label="Pilar">${options}</select>
+          <select class="input" name="repeat" aria-label="Repetição"><option value="once">Só ${k === tk ? 'hoje' : 'neste dia'}</option><option value="daily">Todo dia</option><option value="weekdays">Dias úteis</option></select>
+          <button class="btn" type="submit">${icon('plus')} Adicionar</button>
+        </form>` })}
+    ${card({ title: 'Últimos 7 dias', sub: '% das tarefas concluídas por dia', body: barChart({ items: last7, unit: '%', height: 170 }) })}
+  </div>
+  ${card({ title: 'Rotina fixa', sub: 'Tarefas que se repetem. Toque nos dias para escolher quando cada uma aparece.', body: routine })}`;
+};
 
 function overviewSeries(metric, period) {
   const s = Store.state.settings, today = D.today();
@@ -926,6 +1044,14 @@ Views.visao = () => {
       ${card({ body: `<div class="donut-row"><div><div class="card-title">Pilares em dia</div><div class="trend" style="margin-top:6px">${ok} de ${total} nesta semana</div></div>${donut((ok / total) * 100)}</div>` })}
     </div>
   </div>
+  ${(() => {
+    const tl = Calc.tasksFor(D.key(today)), td = tl.filter(t => t.done).length;
+    const shown = [...tl.filter(t => !t.done), ...tl.filter(t => t.done)].slice(0, 6);
+    return `<div class="grid">${card({ title: 'Tarefas de hoje', sub: tl.length ? `${td} de ${tl.length} concluídas` : 'Nenhuma tarefa para hoje',
+      right: `<button class="btn ghost sm" data-nav="tarefas">${tl.length ? 'Ver todas' : 'Adicionar tarefas'}</button>`,
+      body: tl.length ? `<div style="margin-bottom:6px">${progress((td / tl.length) * 100)}</div>${shown.map(t => taskRow(t, D.key(today))).join('')}${tl.length > 6 ? `<div class="row-meta">e mais ${tl.length - 6} em Tarefas</div>` : ''}`
+        : '<div class="empty">Crie sua rotina em Tarefas: o que se repete aparece aqui todos os dias.</div>' })}</div>`;
+  })()}
   <section class="card flush">
     <div class="card-head"><div><div class="card-title">Pilares</div><div class="card-sub">Situação de cada pilar nesta semana</div></div>
       <button class="icon-btn" data-nav="emocional" title="Fazer check-in" aria-label="Fazer check-in">${icon('arrow')}</button></div>
@@ -1162,7 +1288,7 @@ Views.config = () => {
 };
 
 /* ---------------- Render ---------------- */
-const ROUTES = ['visao', ...PILLARS.map(p => p.id), 'config'];
+const ROUTES = ['visao', 'tarefas', ...PILLARS.map(p => p.id), 'config'];
 const route = () => { const r = location.hash.replace('#', ''); return ROUTES.includes(r) ? r : 'visao'; };
 const $main = document.getElementById('main'), $side = document.getElementById('sidebar'), $modal = document.getElementById('modal');
 
@@ -1178,7 +1304,7 @@ function sidebarHtml(r) {
   const ready = Store.mode !== 'loading';
   const st = ready ? Calc.status() : [];
   return `<div class="brand">Painel<span>.</span>vida</div>
-    <nav class="nav" aria-label="Pilares">${link('visao', 'Visão geral', 'grid')}${PILLARS.map(p => link(p.id, p.name, p.icon)).join('')}</nav>
+    <nav class="nav" aria-label="Pilares">${link('visao', 'Visão geral', 'grid')}${link('tarefas', 'Tarefas', 'list')}${PILLARS.map(p => link(p.id, p.name, p.icon)).join('')}</nav>
     ${ready ? `<div class="side-card"><p>Consistência da semana</p><strong>${st.filter(x => x.ok).length}/${st.length}</strong><span>pilares em dia</span><a class="btn light" href="#emocional">Fazer check-in</a></div>` : '<div style="margin-top:auto"></div>'}
     <nav class="nav nav-bottom" aria-label="Configurações">${link('config', 'Configurações', 'sliders')}</nav>`;
 }
@@ -1193,11 +1319,11 @@ function render() {
   }
   let top = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">${syncBadge()}</div>`;
   if (Store.state.sample) top += `<div class="banner"><span>Você está vendo <b>dados de exemplo</b>. Quando quiser, comece com os seus.</span><button class="btn sm" data-action="clearSample">Começar do zero</button></div>`;
-  else if (Store.fresh && r === 'visao') top += `<section class="card welcome"><div><div class="card-title">Bem-vindo ao seu Painel da Vida</div><p>Comece marcando um treino em Saúde, as páginas de hoje em Estudos ou a receita do mês em Financeiro. Se preferir conhecer o painel antes, carregue dados de exemplo.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-nav="config">Definir minhas metas</button><button class="btn ghost" data-action="loadSample">Ver exemplo</button></div></section>`;
+  else if (Store.fresh && r === 'visao') top += `<section class="card welcome"><div><div class="card-title">Bem-vindo ao seu Painel da Vida</div><p>Comece criando sua rotina em Tarefas, marcando um treino em Saúde ou lançando a receita do mês em Financeiro. Se preferir conhecer o painel antes, carregue dados de exemplo.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-nav="config">Definir minhas metas</button><button class="btn ghost" data-action="loadSample">Ver exemplo</button></div></section>`;
   $main.innerHTML = top + Views[r]();
   if (focusKey) { const el = $main.querySelector(`[data-k="${CSS.escape(focusKey)}"]`); if (el) el.focus({ preventScroll: true }); }
   const p = pillar(r);
-  document.title = p ? `${p.name} · Painel da Vida` : 'Painel da Vida';
+  document.title = p ? `${p.name} · Painel da Vida` : r === 'tarefas' ? 'Tarefas · Painel da Vida' : 'Painel da Vida';
 }
 function safeRender() {
   const a = document.activeElement;
@@ -1240,14 +1366,29 @@ const Actions = {
     ask('Remover a fatura deste mês?', 'Remover', () => { delete Store.month(month).invoice; commit(); }, true);
     return false;
   },
-  remove({ list, id }) {
+  toggleTask({ date, id, rec }) {
+    const day = Store.day(date);
+    if (rec === '1') { day.done = day.done || {}; day.done[id] = !day.done[id]; if (!day.done[id]) delete day.done[id]; }
+    else { const t = (day.todos || []).find(x => x.id === id); if (!t) return false; t.done = !t.done; }
+    const st = Calc.taskStats(date);
+    if (date === D.todayKey() && st.total && st.done === st.total) toast('Tudo feito hoje! 🎉');
+  },
+  toggleTaskDay({ id, wd }) {
+    const t = Store.state.tasks.find(x => x.id === id); if (!t) return false;
+    const n = Number(wd), days = new Set(t.days || []);
+    if (days.has(n)) { if (days.size === 1) { toast('A tarefa precisa de pelo menos um dia'); return false; } days.delete(n); } else days.add(n);
+    t.days = [...days].sort();
+  },
+  shiftTaskDay({ delta }) { UI.state.taskDay = D.key(D.add(D.parse(UI.state.taskDay), Number(delta))); },
+  remove({ list, id, date }) {
     const S = Store.state;
     const doIt = () => {
       if (list === 'categories') S.finance.categories = S.finance.categories.filter(c => c !== id);
-      else { const arr = { records: S.records, books: S.books, goals: S.finance.goals }[list]; const i = arr ? arr.findIndex(x => x.id === id) : -1; if (i >= 0) arr.splice(i, 1); }
+      else if (list === 'todos') { const d = Store.day(date); d.todos = (d.todos || []).filter(x => x.id !== id); }
+      else { const arr = { records: S.records, books: S.books, goals: S.finance.goals, tasks: S.tasks }[list]; const i = arr ? arr.findIndex(x => x.id === id) : -1; if (i >= 0) arr.splice(i, 1); }
       commit();
     };
-    const msg = { books: 'Remover este livro?', goals: 'Remover esta meta e os aportes registrados?' }[list];
+    const msg = { books: 'Remover este livro?', goals: 'Remover esta meta e os aportes registrados?', tasks: 'Remover esta tarefa da rotina? Ela deixa de aparecer nos próximos dias.' }[list];
     if (msg) ask(msg, 'Remover', doIt, true); else doIt();
     return false;
   },
@@ -1266,6 +1407,12 @@ const Actions = {
 };
 
 const Forms = {
+  addTask({ name, pillar: p, repeat }) {
+    const n = name.trim(); if (!n) return false;
+    const k = UI.state.taskDay;
+    if (repeat === 'once') { const d = Store.day(k); d.todos = d.todos || []; d.todos.push({ id: uid(), name: n, pillar: p || '', done: false }); }
+    else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey() });
+  },
   addRecord({ text }) { Store.state.records.unshift({ id: uid(), text: text.trim() }); },
   addCategory({ name }) {
     const n = name.trim(), cats = Store.state.finance.categories;
