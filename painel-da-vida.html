@@ -1,6 +1,6 @@
 <title>Painel da Vida</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Painel pessoal com tarefas do dia e cinco pilares da vida: financeiro, estudos, emocional, saúde e trabalho.">
+<meta name="description" content="Painel pessoal com tarefas do dia, demandas do trabalho e cinco pilares da vida: financeiro, estudos, emocional, saúde e trabalho.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
@@ -507,6 +507,29 @@ select.input { cursor: pointer; }
 @media (max-width: 560px) { .inline-form.wrap-sm { flex-wrap: wrap; } .inline-form.wrap-sm .input[name="name"] { flex: 1 1 100%; } .inline-form.wrap-sm select.input { max-width: none !important; flex: 1; } }
 @media (max-width: 560px) { .routine-row .grow { flex-basis: 100%; } }
 
+/* ---------- Demandas ---------- */
+.nav a { position: relative; }
+.nav-badge { position: absolute; left: 22px; top: 4px; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; background: var(--down); color: #ffffff; font-size: 10.5px; font-weight: 700; display: grid; place-items: center; line-height: 1; }
+.alert { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 16px; padding: 12px 14px 12px 16px; margin-bottom: 16px; box-shadow: inset 0 0 0 1.5px var(--down); font-size: 13.5px; flex-wrap: wrap; }
+.alert > span { flex: 1; min-width: 200px; }
+.alert .ic { color: var(--down); }
+.sync.err i { background: var(--down); }
+.sync.err { white-space: normal; color: var(--ink-2); }
+.connect { display: flex; align-items: center; gap: 14px; background: var(--soft); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; flex-wrap: wrap; }
+.connect .grow { flex: 1 1 240px; min-width: 0; }
+.dem { display: flex; align-items: center; gap: 12px; padding: 12px 10px; margin: 0 -10px; border-bottom: 1px solid var(--line); border-radius: 12px; flex-wrap: wrap; }
+.dem:last-of-type { border-bottom: 0; }
+.dem.unseen { background: var(--soft); box-shadow: inset 3px 0 0 var(--down); }
+.dem.closed .row-title { color: var(--ink-3); text-decoration: line-through; }
+.dem .grow { flex: 1 1 220px; min-width: 0; }
+.dem .row-title { overflow-wrap: anywhere; }
+.dem-src { width: 34px; height: 34px; border-radius: 10px; background: var(--soft); display: grid; place-items: center; flex: none; color: var(--ink-2); }
+.dem.unseen .dem-src { background: var(--card); }
+.dem-actions { display: flex; align-items: center; gap: 6px; }
+.dem-actions a.btn { text-decoration: none; }
+.ic.mini { width: 12px; height: 12px; vertical-align: -1px; }
+@media (max-width: 560px) { .dem .badge { order: 3; } .dem-actions { order: 4; margin-left: auto; } }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -553,11 +576,12 @@ function defaultState() {
   return {
     sample: false,
     settings: { name: '', trainGoal: 5, sleepGoal: 8, pagesGoal: 15, habitName: 'Caminhada de 20 min',
-      work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 2, 3, 4] } },
+      work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 2, 3, 4], gmailOn: false, gmailDomain: 'gerar.org.br', gmailSyncedAt: 0 } },
     days: {},   // 'AAAA-MM-DD' -> { trained, sleep, energy, pages, habit }
     weeks: {},  // segunda 'AAAA-MM-DD' -> { feeling, good, insights, q1, q2, q3, ratings }
     records: [],
     books: [],
+    demands: [],   // demandas do trabalho: { id, src: 'gmail'|'manual', thread, from, subject, date, status, seen, attach }
     workGoals: [], // objetivos profissionais: { id, name, progress, updatedAt }
     tasks: [],  // rotina fixa: { id, name, pillar, days: [0-6, seg=0], from: 'AAAA-MM-DD' }
     finance: { categories: ['Moradia', 'Alimentação', 'Transporte', 'Lazer', 'Assinaturas e cursos'], months: {}, goals: [] },
@@ -638,6 +662,11 @@ function sampleState() {
     const roll = r();
     s.days[D.key(d)].work = roll < 0.04 ? { status: 'folga' } : { status: 'ok', in: roll < 0.2 ? '13:40' : '13:30', out: roll > 0.85 ? '18:00' : '17:30' };
   }
+  s.demands = [
+    { id: uid(), src: 'gmail', thread: 'exemplo-1', from: 'financeiro@gerar.org.br', subject: 'Notas fiscais de novembro para lançar (exemplo)', date: Date.now() - 2 * 3600e3, attach: true, status: 'nova', seen: false, count: 1 },
+    { id: uid(), src: 'gmail', thread: 'exemplo-2', from: 'coordenacao@gerar.org.br', subject: 'Lista de presença do projeto para digitalizar (exemplo)', date: Date.now() - 26 * 3600e3, attach: true, status: 'andamento', seen: true, count: 1 },
+    { id: uid(), src: 'manual', from: 'Coordenação', subject: 'Atualizar a planilha de contatos (exemplo)', date: Date.now() - 3 * 864e5, status: 'concluida', seen: true, doneAt: Date.now() - 2 * 864e5 },
+  ];
   s.workGoals = [
     { id: uid(), name: 'Dominar o sistema e as planilhas da empresa', progress: 60, updatedAt: Date.now() - 2 * 864e5 },
     { id: uid(), name: 'Organizar o arquivo de documentos do setor', progress: 30, updatedAt: Date.now() - 10 * 864e5 },
@@ -658,7 +687,7 @@ function normalize(raw) {
   s.finance = Object.assign(defaultState().finance, s.finance || {});
   ['days', 'weeks'].forEach(k => { if (!s[k] || typeof s[k] !== 'object') s[k] = {}; });
   s.settings.work = Object.assign(defaultState().settings.work, (raw && raw.settings && raw.settings.work) || {});
-  ['records', 'books', 'tasks', 'workGoals'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
+  ['records', 'books', 'tasks', 'workGoals', 'demands'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   if (!s.finance.months || typeof s.finance.months !== 'object') s.finance.months = {};
   if (!Array.isArray(s.finance.goals)) s.finance.goals = [];
   if (!Array.isArray(s.finance.categories)) s.finance.categories = [];
@@ -674,11 +703,12 @@ function toDocs(s) {
   Object.entries(s.days).forEach(([k, v]) => { const id = 'd-' + k.slice(0, 7); (docs[id] = docs[id] || { days: {} }).days[k] = v; });
   Object.entries(s.weeks).forEach(([k, v]) => { const id = 'w-' + k.slice(0, 4); (docs[id] = docs[id] || { weeks: {} }).weeks[k] = v; });
   Object.entries(s.finance.months).forEach(([k, v]) => { docs['f-' + k] = v; });
+  if (s.demands.length) docs.demands = { items: s.demands.slice(-300) };
   return docs;
 }
 function fromDocs(docs) {
   const c = docs.config || {};
-  const s = normalize({ sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, workGoals: c.workGoals, finance: { categories: c.categories, goals: c.goals, months: {} } });
+  const s = normalize({ demands: (docs.demands || {}).items, sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, workGoals: c.workGoals, finance: { categories: c.categories, goals: c.goals, months: {} } });
   Object.entries(docs).forEach(([id, d]) => {
     if (id.startsWith('d-')) Object.assign(s.days, d.days || {});
     else if (id.startsWith('w-')) Object.assign(s.weeks, d.weeks || {});
@@ -754,6 +784,7 @@ async function boot() {
     try { Store.state = raw ? normalize(JSON.parse(raw)) : defaultState(); } catch (e) { Store.state = defaultState(); }
     Store.fresh = !raw;
     render();
+    Gmail.init();
     return;
   }
 
@@ -770,6 +801,7 @@ async function boot() {
       Store.fresh = snap.empty;
       Store.state = snap.empty ? defaultState() : fromDocs(docs);
       render();
+      Gmail.init();
       return;
     }
     if (Sync.saving()) return;
@@ -840,11 +872,13 @@ const Calc = {
     return { state, s, e, n, pct: e > s ? clamp(((n - s) / (e - s)) * 100, 0, 100) : 0 };
   },
   /* Tarefas de um dia: rotina fixa (que vale nesse dia da semana) + avulsas */
-  tasksFor(k) {
+  /* work=false: tarefas pessoais (tela Tarefas); work=true: rotina do trabalho (módulo Trabalho) */
+  tasksFor(k, work = false) {
     const S = Store.state, wd = (D.parse(k).getDay() + 6) % 7, day = S.days[k] || {}, done = day.done || {};
-    const rec = S.tasks.filter(t => (t.days || []).includes(wd) && (!t.from || t.from <= k))
+    const keep = t => (work ? t.pillar === 'trabalho' : t.pillar !== 'trabalho');
+    const rec = S.tasks.filter(t => keep(t) && (t.days || []).includes(wd) && (!t.from || t.from <= k))
       .map(t => ({ id: t.id, name: t.name, pillar: t.pillar, rec: true, done: !!done[t.id] }));
-    const one = (day.todos || []).map(t => ({ ...t, rec: false }));
+    const one = (day.todos || []).filter(keep).map(t => ({ ...t, rec: false }));
     return [...rec, ...one];
   },
   taskStats(k) { const t = Calc.tasksFor(k); return { total: t.length, done: t.filter(x => x.done).length }; },
@@ -877,14 +911,14 @@ const Calc = {
       { id: 'financeiro', ok: finOk, indicator: fm.invoice ? `fatura de ${sm} enviada` : (finOk ? 'mês em lançamento' : `fatura de ${sm} pendente`), goal: 'fatura e gastos do mês', rule: 'mês com lançamentos ou fatura enviada' },
       { id: 'estudos', ok: rs > 0, indicator: `${rs} ${rs === 1 ? 'dia seguido' : 'dias seguidos'} lendo`, goal: `${s.pagesGoal} páginas por dia`, rule: 'meta de páginas cumprida ontem ou hoje' },
       { id: 'emocional', ok: mind, indicator: mind ? `nota da semana: ${fmt(Calc.mindAvg(wk))}/10` : 'check-in pendente', goal: 'check-in semanal', rule: 'check-in da semana feito' },
-      { id: 'trabalho', ok: workOk, indicator: `${worked}/${workdays.length} dias de expediente`, goal: `${s.work.start} às ${s.work.end}`, rule: 'ponto marcado em todos os dias de trabalho até ontem' },
+      { id: 'trabalho', ok: workOk && !S.demands.some(d => d.status === 'nova' && Date.now() - d.date > 864e5), indicator: `${worked}/${workdays.length} dias de expediente · ${S.demands.filter(d => d.status !== 'concluida').length} demandas abertas`, goal: `${s.work.start} às ${s.work.end}`, rule: 'ponto marcado até ontem e nenhuma demanda nova parada há mais de 1 dia' },
       { id: 'saude', ok: tr >= expected, indicator: `${tr}/${s.trainGoal} treinos essa semana`, goal: `${s.trainGoal} treinos por semana`, rule: 'treinos no ritmo da meta semanal' },
     ];
   },
 };
 
 /* ---------------- Componentes ---------------- */
-const UI = { state: { taskDay: D.todayKey(), workOffset: 0, workDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
+const UI = { highlight: new Set(), state: { demFilter: 'abertas', taskDay: D.todayKey(), workOffset: 0, workDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
 
 const ICONS = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -906,6 +940,9 @@ const ICONS = {
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
   clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  clip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
   list: '<rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 9"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -969,13 +1006,13 @@ function toast(msg) {
 /* ---------------- Telas ---------------- */
 const Views = {};
 
-function taskRow(t, date) {
+function taskRow(t, date, removeRec = false) {
   const p = t.pillar ? pillar(t.pillar) : null;
   return `<div class="task ${t.done ? 'done' : ''}">
     <button class="check ${t.done ? 'on' : ''}" data-action="toggleTask" data-date="${date}" data-id="${t.id}" data-rec="${t.rec ? 1 : 0}" aria-pressed="${t.done}" aria-label="${t.done ? 'Desmarcar' : 'Marcar'}: ${esc(t.name)}">${icon('check')}</button>
     <span class="task-name">${esc(t.name)}</span>
-    ${p ? `<span class="tag">${esc(p.name)}</span>` : ''}
-    ${t.rec ? '<span class="tag soft">rotina</span>' : removeBtn(`data-list="todos" data-date="${date}" data-id="${t.id}"`, 'Remover tarefa')}
+    ${p && !removeRec ? `<span class="tag">${esc(p.name)}</span>` : ''}
+    ${t.rec ? `<span class="tag soft">rotina</span>${removeRec ? removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina') : ''}` : removeBtn(`data-list="todos" data-date="${date}" data-id="${t.id}"`, 'Remover tarefa')}
   </div>`;
 }
 function dayName(k) {
@@ -996,9 +1033,10 @@ Views.tarefas = () => {
   });
   const withTasks = last7.filter(x => x.total > 0);
   const weekPct = withTasks.length ? Math.round(withTasks.reduce((a, b) => a + b.value, 0) / withTasks.length) : 0;
-  const options = `<option value="">Sem pilar</option>${PILLARS.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}`;
+  const personal = S.tasks.filter(t => t.pillar !== 'trabalho');
+  const options = `<option value="">Sem pilar</option>${PILLARS.filter(p => p.id !== 'trabalho').map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}`;
 
-  const routine = S.tasks.length ? S.tasks.map(t => `<div class="row routine-row">
+  const routine = personal.length ? personal.map(t => `<div class="row routine-row">
       <div class="grow"><div class="row-title" style="font-weight:500">${esc(t.name)}</div>${t.pillar ? `<div class="row-sub">${esc(pillar(t.pillar).name)}</div>` : ''}</div>
       <div class="wd" role="group" aria-label="Dias da semana de ${esc(t.name)}">${WEEKDAYS.map((w, i) => `<button class="${(t.days || []).includes(i) ? 'on' : ''}" data-action="toggleTaskDay" data-id="${t.id}" data-wd="${i}" aria-pressed="${(t.days || []).includes(i)}">${w}</button>`).join('')}</div>
       ${removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina')}
@@ -1011,7 +1049,7 @@ Views.tarefas = () => {
     ${statCard({ label: 'Tarefas de hoje', value: ts.done, unit: `/ ${ts.total} feitas`, foot: footText(ts.total ? (ts.done === ts.total ? 'tudo feito hoje ✓' : `${ts.total - ts.done} ${ts.total - ts.done === 1 ? 'pendente' : 'pendentes'}`) : 'nenhuma tarefa para hoje'), dark: true })}
     ${statCard({ label: 'Dias com tudo feito', value: streak, unit: streak === 1 ? 'dia seguido' : 'dias seguidos' })}
     ${statCard({ label: 'Últimos 7 dias', value: `${weekPct}%`, foot: footText('média de tarefas concluídas') })}
-    ${statCard({ label: 'Rotina fixa', value: S.tasks.length, unit: S.tasks.length === 1 ? 'tarefa' : 'tarefas' })}
+    ${statCard({ label: 'Rotina fixa', value: personal.length, unit: personal.length === 1 ? 'tarefa' : 'tarefas' })}
   </div>
   <div class="grid g-21">
     ${card({ title: k === tk ? 'Tarefas de hoje' : `Tarefas · ${dayName(k)}`, sub: list.length ? `${fin.length} de ${list.length} concluídas` : 'Nenhuma tarefa neste dia',
@@ -1310,6 +1348,165 @@ Views.saude = () => {
 
 const hm = m => `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart(2, '0')}`;
 
+/* ---------------- Gmail: demandas do trabalho ---------------- */
+const GMAIL_MSG = {
+  needs_reauth: 'A conexão com o Gmail expirou. Reconecte o Gmail em claude.ai → Configurações → Conectores.',
+  server_not_connected: 'O conector do Gmail não está ligado na sua conta Claude. Adicione-o em claude.ai → Configurações → Conectores.',
+  server_not_found: 'O conector do Gmail não foi encontrado. Adicione-o de novo em claude.ai → Configurações → Conectores.',
+  selection_required: 'Há mais de uma conta Gmail conectada. Escolha a conta das demandas quando o Claude perguntar.',
+  blocked_by_policy: 'A sua organização bloqueou o Gmail para este painel.',
+  not_granted: 'A leitura do Gmail não está disponível nesta visualização. Abra o painel pelo link no Claude.',
+  capability_disabled: 'A leitura do Gmail não está disponível nesta visualização. Abra o painel pelo link no Claude.',
+  capability_removed: 'A leitura do Gmail não está disponível nesta visualização. Abra o painel pelo link no Claude.',
+  not_in_manifest: 'O painel ainda não tem sua permissão para ler o Gmail.',
+  approval_required: 'O painel ainda não tem sua permissão para ler o Gmail.',
+  consent_required: 'O painel ainda não tem sua permissão para ler o Gmail.',
+};
+const NEEDS_ALLOW = ['not_in_manifest', 'approval_required', 'consent_required'];
+
+function parseDate(v) {
+  if (typeof v === 'number') return v < 1e12 ? v * 1000 : v;
+  const t = Date.parse(v || ''); return isNaN(t) ? 0 : t;
+}
+const senderOf = s => { const v = String(s || '').trim(); const m = v.match(/^"?([^"<]+?)"?\s*<([^>]+)>$/); return m ? m[1].trim() : v; };
+function relTime(ms) {
+  const diff = Date.now() - ms, min = Math.round(diff / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `há ${h} h`;
+  if (h < 48) return 'ontem';
+  const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+const Gmail = {
+  mcp: null, state: 'off', code: '', lastSync: 0, unsub: [], started: false, inited: false, attachIds: new Set(),
+  query() { return `from:${Store.state.settings.work.gmailDomain || 'gerar.org.br'} -in:sent newer_than:30d`; },
+  async init() {
+    if (this.inited) return; this.inited = true;
+    try { this.mcp = window.claude && window.claude.use ? await window.claude.use('mcp') : null; } catch (e) { this.mcp = null; }
+    if (!this.mcp) { this.state = 'unavailable'; safeRender(); return; }
+    if (Store.state.settings.work.gmailOn) this.start(); else safeRender();
+  },
+  start() {
+    if (!this.mcp || this.started) return;
+    this.started = true; this.state = 'connecting';
+    const q = this.query(), opts = { refetchInterval: 300000 };
+    try {
+      this.unsub.push(this.mcp.watchTool('Gmail', 'search_threads', { query: q, pageSize: 25, view: 'THREAD_VIEW_SUMMARY' }, ev => this.onEvent(ev, 'main'), opts));
+      this.unsub.push(this.mcp.watchTool('Gmail', 'search_threads', { query: q + ' has:attachment', pageSize: 25, view: 'THREAD_VIEW_IDS_ONLY' }, ev => this.onEvent(ev, 'attach'), opts));
+    } catch (e) { this.fail(e); }
+  },
+  stop() { this.unsub.forEach(u => { try { u(); } catch (e) { /* já encerrado */ } }); this.unsub = []; this.started = false; },
+  restart() { this.stop(); this.start(); },
+  /* Chamado só por clique: a primeira leitura pede sua permissão para o Gmail */
+  async connect() {
+    if (!this.mcp) { toast('Abra o painel pelo link no Claude para conectar o Gmail.'); return; }
+    this.state = 'connecting'; render();
+    try {
+      const r = await this.mcp.callTool('Gmail', 'search_threads', { query: this.query(), pageSize: 25, view: 'THREAD_VIEW_SUMMARY' });
+      Store.state.settings.work.gmailOn = true;
+      this.state = 'ok'; this.code = ''; this.lastSync = Date.now();
+      this.ingest(r.payload);
+      this.restart();
+      commit();
+      toast('Gmail conectado. Novas demandas vão aparecer aqui.');
+    } catch (e) { this.fail(e); render(); }
+  },
+  onEvent(ev, kind) {
+    if (Store.mode === 'loading') return;
+    if (ev.type === 'error') { this.fail(ev.error); safeRender(); return; }
+    const p = ev.result && ev.result.payload;
+    if (kind === 'attach') {
+      this.attachIds = new Set(((p && p.threads) || []).map(t => t.id));
+      let ch = false;
+      Store.state.demands.forEach(d => { if (d.src === 'gmail' && !d.attach && this.attachIds.has(d.thread)) { d.attach = true; ch = true; } });
+      if (ch) { Sync.push(); safeRender(); }
+      return;
+    }
+    this.state = 'ok'; this.code = '';
+    this.lastSync = (ev.result.cache && ev.result.cache.storedAt) || Date.now();
+    this.ingest(p);
+  },
+  ingest(p) {
+    const threads = p && Array.isArray(p.threads) ? p.threads : [];
+    const w = Store.state.settings.work, initial = !w.gmailSyncedAt, added = [];
+    threads.forEach(t => {
+      const msgs = t.messages || [], m = msgs[msgs.length - 1] || {};
+      const count = t.messageCount || msgs.length || 1;
+      const ex = Store.state.demands.find(d => d.src === 'gmail' && d.thread === t.id);
+      if (!ex) {
+        const d = { id: uid(), src: 'gmail', thread: t.id, from: senderOf(m.sender), subject: m.subject || '(sem assunto)', url: t.viewUrl || m.viewUrl || '', date: parseDate(m.date) || Date.now(), count, attach: this.attachIds.has(t.id), status: 'nova', seen: initial };
+        Store.state.demands.push(d);
+        if (!initial) added.push(d);
+      } else if (count > (ex.count || 1)) {
+        Object.assign(ex, { count, seen: false, reply: true, date: parseDate(m.date) || Date.now() });
+        if (ex.status === 'concluida') ex.status = 'andamento';
+        added.push(ex);
+      }
+    });
+    if (initial) w.gmailSyncedAt = Date.now();
+    if (added.length || initial) { Store.fresh = false; Sync.push(); }
+    if (added.length) toast(added.length === 1 ? `Nova demanda: ${added[0].subject}` : `${added.length} novas demandas do trabalho`);
+    safeRender();
+  },
+  fail(e) { this.code = (e && e.code) || 'upstream_error'; this.state = 'error'; },
+};
+
+function gmailLine() {
+  const w = Store.state.settings.work, G = Gmail;
+  let cls = 'local', text;
+  if (G.state === 'unavailable') text = 'disponível só abrindo pelo link no Claude';
+  else if (!w.gmailOn && G.state !== 'connecting') text = 'desligada';
+  else if (G.state === 'connecting') { cls = 'saving'; text = 'conectando ao Gmail…'; }
+  else if (G.state === 'error') { cls = 'err'; text = GMAIL_MSG[G.code] || 'O Gmail não respondeu agora. Tento de novo na próxima verificação.'; }
+  else { cls = ''; const t = new Date(G.lastSync); text = `Gmail conectado · verificado às ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')} · confere a cada 5 min`; }
+  return `<span class="sync ${cls}"><i></i>${esc(text)}</span>`;
+}
+
+function demandRow(d) {
+  const st = { nova: 'Nova', andamento: 'Em andamento', concluida: 'Concluída' }[d.status] || 'Nova';
+  const next = d.status === 'nova' ? ['andamento', 'Começar'] : d.status === 'andamento' ? ['concluida', 'Concluir'] : ['andamento', 'Reabrir'];
+  const link = d.src === 'gmail' && d.thread && !String(d.thread).startsWith('exemplo') ? (d.url || `https://mail.google.com/mail/#all/${encodeURIComponent(d.thread)}`) : '';
+  return `<div class="dem ${d.seen && !UI.highlight.has(d.id) ? '' : 'unseen'} ${d.status === 'concluida' ? 'closed' : ''}">
+    <span class="dem-src" title="${d.src === 'gmail' ? 'Veio do Gmail' : 'Adicionada à mão'}">${icon(d.src === 'gmail' ? 'mail' : 'user')}</span>
+    <div class="grow">
+      <div class="row-title">${esc(d.subject)}</div>
+      <div class="row-sub">${esc(d.from || 'sem remetente')} · ${relTime(d.date)}${d.attach ? ` · ${icon('clip', 'mini')} anexo` : ''}${d.reply ? ' · <b>nova resposta</b>' : ''}</div>
+    </div>
+    <span class="badge ${d.status === 'nova' ? 'dark' : 'light'}">${st}</span>
+    <div class="dem-actions">
+      ${link ? `<a class="btn ghost sm" href="${esc(link)}" target="_blank" rel="noopener" data-action="demSeen" data-id="${d.id}">Abrir</a>` : ''}
+      <button class="btn sm ${d.status === 'concluida' ? 'ghost' : ''}" data-action="demStatus" data-id="${d.id}" data-v="${next[0]}">${next[1]}</button>
+      ${removeBtn(`data-list="demands" data-id="${d.id}"`, 'Remover demanda')}
+    </div>
+  </div>`;
+}
+
+function demandsCard() {
+  const S = Store.state, ui = UI.state, w = S.settings.work, G = Gmail;
+  const open = S.demands.filter(d => d.status !== 'concluida').sort((a, b) => (a.status === b.status ? b.date - a.date : a.status === 'nova' ? -1 : 1));
+  const closed = S.demands.filter(d => d.status === 'concluida').sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 30);
+  const list = ui.demFilter === 'abertas' ? open : closed;
+  const pills = [['abertas', `Abertas (${open.length})`], ['concluidas', `Concluídas (${closed.length})`]]
+    .map(([k, l]) => `<button class="pill ${ui.demFilter === k ? 'active' : ''}" data-action="setUi" data-key="demFilter" data-value="${k}">${l}</button>`).join('');
+  let connect = '';
+  if (G.state !== 'unavailable' && (!w.gmailOn || (G.state === 'error' && NEEDS_ALLOW.includes(G.code)))) {
+    connect = `<div class="connect">${icon('mail')}<div class="grow"><b>${w.gmailOn ? 'Permita a leitura do Gmail' : 'Receba demandas do Gmail automaticamente'}</b>
+      <div class="row-sub">Todo e-mail de @${esc(w.gmailDomain)} vira uma demanda aqui. O painel só lê: não responde, não apaga e não marca nada no seu e-mail.</div></div>
+      <button class="btn" data-action="gmailConnect" ${G.state === 'connecting' ? 'disabled' : ''}>${G.state === 'connecting' ? 'Conectando…' : (w.gmailOn ? 'Permitir acesso' : 'Conectar Gmail')}</button></div>`;
+  }
+  return card({ title: 'Demandas do trabalho', sub: `E-mails de @${w.gmailDomain} e pedidos que você anotar`,
+    right: `<div class="pills on-card">${pills}</div>`,
+    body: `<div style="margin:-6px 0 14px">${gmailLine()}</div>${connect}
+      ${list.length ? list.map(demandRow).join('') : `<div class="empty">${ui.demFilter === 'abertas' ? 'Nenhuma demanda aberta. Quando chegar e-mail da Gerar, ele aparece aqui.' : 'Nenhuma demanda concluída ainda.'}</div>`}
+      <form class="inline-form wrap-sm card-foot" data-submit="addDemand">
+        <input class="input" name="subject" placeholder="Anotar demanda (ex: pedido feito pessoalmente)" required maxlength="140" aria-label="Nova demanda">
+        <input class="input" name="from" placeholder="Quem pediu" maxlength="60" style="max-width:170px" aria-label="Quem pediu">
+        <button class="btn" type="submit" aria-label="Adicionar demanda">${icon('plus')}</button>
+      </form>` });
+}
+
 Views.trabalho = () => {
   const S = Store.state, s = S.settings, w = s.work, ui = UI.state, today = D.today(), tk = D.key(today);
   const thisMon = D.monday(today), mon = D.add(thisMon, 7 * ui.workOffset);
@@ -1346,7 +1543,7 @@ Views.trabalho = () => {
   const wk = D.key(thisMon), wn = S.weeks[wk] || {};
   const note = (f, label, ph) => `<div class="field" style="margin-bottom:12px"><label for="work-${f}">${esc(label)}</label><textarea id="work-${f}" class="input" rows="2" data-input="mind" data-week="${wk}" data-field="${f}" data-k="work-${f}" placeholder="${esc(ph)}">${esc(wn[f] || '')}</textarea></div>`;
 
-  const tl = Calc.tasksFor(tk).filter(t => t.pillar === 'trabalho');
+  const tl = Calc.tasksFor(tk, true);
   const goalRows = goals.length ? goals.map(g => `<div class="row routine-row">
       <div class="grow"><div style="display:flex;justify-content:space-between;gap:8px"><span class="row-title" style="font-weight:500">${esc(g.name)}</span><span class="pct">${g.progress}%</span></div><div style="margin-top:9px">${progress(g.progress)}</div></div>
       <button class="btn ghost sm" data-action="workStep" data-id="${g.id}" data-delta="-10" aria-label="Diminuir 10%">−10%</button>
@@ -1360,9 +1557,10 @@ Views.trabalho = () => {
   <div class="stats">
     ${statCard({ label: 'Expediente de hoje', value: esc(heroValue), unit: heroUnit, foot: footText(heroFoot), dark: true })}
     ${statCard({ label: ui.workOffset === 0 ? 'Horas na semana' : 'Horas nessa semana', value: hm(weekMin), unit: `/ ${hm(expectedMin)}`, foot: footText(`${week.filter(d => ((Calc.dayVal(D.key(d)).work) || {}).status === 'ok').length} de ${workdays.length} dias trabalhados`) })}
-    ${statCard({ label: 'Dias trabalhados no mês', value: monthDays, unit: monthDays === 1 ? 'dia' : 'dias', foot: footText(cap(MONTHS[today.getMonth()])) })}
+    ${statCard({ label: 'Demandas abertas', value: S.demands.filter(d => d.status !== 'concluida').length, foot: footText(`${S.demands.filter(d => d.status === 'nova').length} novas · ${monthDays} ${monthDays === 1 ? 'dia trabalhado' : 'dias trabalhados'} no mês`) })}
     ${statCard({ label: 'Objetivos profissionais', value: `${goalsAvg}%`, foot: footText(`média de ${goals.length} ${goals.length === 1 ? 'objetivo' : 'objetivos'}`) })}
   </div>
+  ${demandsCard()}
   <div class="grid g-2">
     ${card({ title: 'Ponto da semana', sub: `${rangeLabel(mon)} · toque num dia para marcar`,
       body: `<div class="days">${strip}</div>
@@ -1377,11 +1575,11 @@ Views.trabalho = () => {
       body: `<div class="kv"><span>${w.start}</span><b>${sh.state === 'during' ? `${Math.round(sh.pct)}% do expediente` : sh.state === 'after' ? 'encerrado' : sh.state === 'before' ? 'ainda não começou' : 'folga'}</b><span>${w.end}</span></div>
         ${progress(sh.state === 'after' ? 100 : sh.state === 'during' ? sh.pct : 0, 'thick')}
         <div class="card-foot">
-          <div class="kv" style="margin-bottom:6px"><span class="card-title" style="font-size:14px">Tarefas de trabalho de hoje</span><button class="btn ghost sm" data-nav="tarefas">Ver todas</button></div>
-          ${tl.length ? tl.map(t => taskRow(t, tk)).join('') : '<div class="empty">Nenhuma tarefa de trabalho para hoje.</div>'}
+          <div class="kv" style="margin-bottom:6px"><span class="card-title" style="font-size:14px">Rotina do trabalho</span><span class="small muted">só aparece aqui</span></div>
+          ${tl.length ? tl.map(t => taskRow(t, tk, true)).join('') : '<div class="empty">Nenhuma tarefa de rotina para hoje. Ex: conferir a agenda do setor.</div>'}
           <form class="inline-form wrap-sm" data-submit="addTask" style="margin-top:12px">
             <input type="hidden" name="pillar" value="trabalho"><input type="hidden" name="day" value="${tk}">
-            <input class="input" name="name" placeholder="Nova tarefa de trabalho" required maxlength="100" aria-label="Nova tarefa de trabalho">
+            <input class="input" name="name" placeholder="Nova tarefa da rotina" required maxlength="100" aria-label="Nova tarefa da rotina do trabalho">
             <select class="input" name="repeat" style="max-width:130px" aria-label="Repetição"><option value="once">Só hoje</option><option value="weekdays">Dias úteis</option></select>
             <button class="btn" type="submit" aria-label="Adicionar tarefa">${icon('plus')}</button>
           </form>
@@ -1417,7 +1615,11 @@ Views.config = () => {
         ${workSetting('role', 'Cargo', 'text')}
         ${workSetting('start', 'Entrada', 'time')}
         ${workSetting('end', 'Saída', 'time')}
+        ${workSetting('gmailDomain', 'Domínio dos e-mails de demanda', 'text')}
       </div>
+      <div class="field" style="margin-top:14px"><span class="field-label">Integração com o Gmail</span>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${gmailLine()}
+          ${s.work.gmailOn ? '<button class="btn ghost sm" data-action="gmailOff">Desligar</button>' : '<button class="btn sm" data-action="gmailConnect">Conectar Gmail</button>'}</div></div>
       <div class="field" style="margin-top:14px"><span class="field-label">Dias de trabalho</span>
         <div class="wd" role="group" aria-label="Dias de trabalho">${WEEKDAYS.map((w, i) => `<button class="${s.work.days.includes(i) ? 'on' : ''}" data-action="toggleWorkDay" data-wd="${i}" aria-pressed="${s.work.days.includes(i)}">${w}</button>`).join('')}</div></div>` })}
   </div>
@@ -1447,7 +1649,8 @@ function syncBadge() {
 function updateSync() { const el = document.getElementById('sync'); if (el) el.outerHTML = syncBadge(); }
 
 function sidebarHtml(r) {
-  const link = (id, label, ic) => `<a href="#${id}" class="${r === id ? 'active' : ''}" ${r === id ? 'aria-current="page"' : ''}>${icon(ic)}<span class="l-full">${esc(label)}</span><span class="l-short">${esc(label === 'Visão geral' ? 'Geral' : label === 'Configurações' ? 'Ajustes' : label)}</span></a>`;
+  const unseen = Store.mode !== 'loading' ? Store.state.demands.filter(d => !d.seen).length : 0;
+  const link = (id, label, ic) => `<a href="#${id}" class="${r === id ? 'active' : ''}" ${r === id ? 'aria-current="page"' : ''}>${icon(ic)}${id === 'trabalho' && unseen ? `<span class="nav-badge" aria-label="${unseen} novas demandas">${unseen}</span>` : ''}<span class="l-full">${esc(label)}</span><span class="l-short">${esc(label === 'Visão geral' ? 'Geral' : label === 'Configurações' ? 'Ajustes' : label)}</span></a>`;
   const ready = Store.mode !== 'loading';
   const st = ready ? Calc.status() : [];
   return `<div class="brand">Painel<span>.</span>vida</div>
@@ -1459,18 +1662,25 @@ function sidebarHtml(r) {
 function render() {
   const r = route();
   const active = document.activeElement, focusKey = active && active.dataset ? active.dataset.k : null;
+  if (Store.mode !== 'loading' && r === 'trabalho') {
+    const fresh = Store.state.demands.filter(d => !d.seen);
+    if (fresh.length) { fresh.forEach(d => { d.seen = true; UI.highlight.add(d.id); }); Sync.push(); }
+  } else if (r !== 'trabalho') UI.highlight.clear();
   $side.innerHTML = sidebarHtml(r);
   if (Store.mode === 'loading') {
     $main.innerHTML = `<div class="loading"><div class="card"><div class="card-title">Abrindo seu painel…</div><p class="desc" style="margin-top:8px">${esc(Store.loadNote || 'Buscando seus dados salvos no Claude.')}</p></div></div>`;
     return;
   }
   let top = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">${syncBadge()}</div>`;
+  const fresh = Store.state.demands.filter(d => !d.seen);
+  if (fresh.length && r !== 'trabalho') { const last = fresh.reduce((a, b) => (b.date > a.date ? b : a)); top += `<div class="alert" role="status">${icon('mail')}<span><b>${fresh.length === 1 ? 'Nova demanda' : `${fresh.length} novas demandas`}</b> de ${esc(last.from || 'trabalho')}: ${esc(last.subject)}</span><button class="btn sm" data-nav="trabalho">Ver</button></div>`; }
   if (Store.state.sample) top += `<div class="banner"><span>Você está vendo <b>dados de exemplo</b>. Quando quiser, comece com os seus.</span><button class="btn sm" data-action="clearSample">Começar do zero</button></div>`;
   else if (Store.fresh && r === 'visao') top += `<section class="card welcome"><div><div class="card-title">Bem-vindo ao seu Painel da Vida</div><p>Comece criando sua rotina em Tarefas, marcando um treino em Saúde ou lançando a receita do mês em Financeiro. Se preferir conhecer o painel antes, carregue dados de exemplo.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-nav="config">Definir minhas metas</button><button class="btn ghost" data-action="loadSample">Ver exemplo</button></div></section>`;
   $main.innerHTML = top + Views[r]();
   if (focusKey) { const el = $main.querySelector(`[data-k="${CSS.escape(focusKey)}"]`); if (el) el.focus({ preventScroll: true }); }
   const p = pillar(r);
-  document.title = p ? `${p.name} · Painel da Vida` : r === 'tarefas' ? 'Tarefas · Painel da Vida' : 'Painel da Vida';
+  const pre = fresh.length && r !== 'trabalho' ? `(${fresh.length}) ` : '';
+  document.title = pre + (p ? `${p.name} · Painel da Vida` : r === 'tarefas' ? 'Tarefas · Painel da Vida' : 'Painel da Vida');
 }
 function safeRender() {
   const a = document.activeElement;
@@ -1547,16 +1757,27 @@ const Actions = {
     g.progress = clamp(g.progress + Number(delta), 0, 100); g.updatedAt = Date.now();
     if (g.progress === 100 && Number(delta) > 0) toast(`Objetivo concluído: ${g.name} 🎉`);
   },
+  demStatus({ id, v }) {
+    const d = Store.state.demands.find(x => x.id === id); if (!d) return false;
+    d.status = v; d.seen = true; d.reply = false;
+    if (v === 'concluida') { d.doneAt = Date.now(); toast('Demanda concluída ✓'); } else delete d.doneAt;
+  },
+  demSeen({ id }) { const d = Store.state.demands.find(x => x.id === id); if (d && !d.seen) { d.seen = true; Sync.push(); } return false; },
+  gmailConnect() { Gmail.connect(); return false; },
+  gmailOff() {
+    ask('Desligar a leitura do Gmail? As demandas já salvas continuam no painel.', 'Desligar', () => { Store.state.settings.work.gmailOn = false; Gmail.stop(); Gmail.state = 'off'; commit(); });
+    return false;
+  },
   shiftTaskDay({ delta }) { UI.state.taskDay = D.key(D.add(D.parse(UI.state.taskDay), Number(delta))); },
   remove({ list, id, date }) {
     const S = Store.state;
     const doIt = () => {
       if (list === 'categories') S.finance.categories = S.finance.categories.filter(c => c !== id);
       else if (list === 'todos') { const d = Store.day(date); d.todos = (d.todos || []).filter(x => x.id !== id); }
-      else { const arr = { records: S.records, books: S.books, goals: S.finance.goals, tasks: S.tasks, workGoals: S.workGoals }[list]; const i = arr ? arr.findIndex(x => x.id === id) : -1; if (i >= 0) arr.splice(i, 1); }
+      else { const arr = { records: S.records, books: S.books, goals: S.finance.goals, tasks: S.tasks, workGoals: S.workGoals, demands: S.demands }[list]; const i = arr ? arr.findIndex(x => x.id === id) : -1; if (i >= 0) arr.splice(i, 1); }
       commit();
     };
-    const msg = { books: 'Remover este livro?', goals: 'Remover esta meta e os aportes registrados?', workGoals: 'Remover este objetivo?', tasks: 'Remover esta tarefa da rotina? Ela deixa de aparecer nos próximos dias.' }[list];
+    const msg = { books: 'Remover este livro?', goals: 'Remover esta meta e os aportes registrados?', workGoals: 'Remover este objetivo?', demands: 'Remover esta demanda do painel? (O e-mail continua no Gmail.)', tasks: 'Remover esta tarefa da rotina? Ela deixa de aparecer nos próximos dias.' }[list];
     if (msg) ask(msg, 'Remover', doIt, true); else doIt();
     return false;
   },
@@ -1581,6 +1802,7 @@ const Forms = {
     if (repeat === 'once') { const d = Store.day(k); d.todos = d.todos || []; d.todos.push({ id: uid(), name: n, pillar: p || '', done: false }); }
     else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey() });
   },
+  addDemand({ subject, from }) { Store.state.demands.push({ id: uid(), src: 'manual', from: (from || '').trim(), subject: subject.trim(), date: Date.now(), status: 'nova', seen: true }); },
   addWorkGoal({ name }) { Store.state.workGoals.push({ id: uid(), name: name.trim(), progress: 0, updatedAt: Date.now() }); },
   addRecord({ text }) { Store.state.records.unshift({ id: uid(), text: text.trim() }); },
   addCategory({ name }) {
@@ -1602,6 +1824,7 @@ const Changes = {
   workSetting(v, { key }) {
     const w = Store.state.settings.work, val = v.trim();
     if ((key === 'start' || key === 'end') && !/^\d{2}:\d{2}$/.test(val)) return false;
+    if (key === 'gmailDomain') { const dom = val.replace(/^@/, '').toLowerCase(); if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(dom)) { toast('Domínio inválido. Ex: gerar.org.br'); return false; } w[key] = dom; if (w.gmailOn) setTimeout(() => Gmail.restart(), 0); return; }
     w[key] = val;
     if (Calc.toMin(w.end) <= Calc.toMin(w.start)) toast('A saída está antes da entrada. Confira os horários.');
   },
@@ -1652,6 +1875,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
   if (!el || el.disabled || Store.mode === 'loading') return;
   const fn = Actions[el.dataset.action]; if (!fn) return;
+  if (el.tagName === 'A') { fn(el.dataset, el); return; }
   e.preventDefault();
   if (fn(el.dataset, el) === false) { render(); return; }
   commit();
