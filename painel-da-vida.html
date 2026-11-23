@@ -1,6 +1,6 @@
 <title>Painel da Vida</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Painel pessoal com tarefas do dia e quatro pilares da vida: financeiro, estudos, emocional e saúde.">
+<meta name="description" content="Painel pessoal com tarefas do dia e cinco pilares da vida: financeiro, estudos, emocional, saúde e trabalho.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
@@ -498,6 +498,15 @@ select.input { cursor: pointer; }
 .routine-row { flex-wrap: wrap; row-gap: 10px; }
 .routine-row .grow { flex: 1 1 220px; }
 
+/* ---------- Trabalho ---------- */
+.day.rest { background: var(--track); color: var(--ink-2); }
+.day.rest .dot { background: var(--ink-3); border-color: var(--ink-3); }
+.day.miss { background: transparent; box-shadow: inset 0 0 0 2px var(--down); color: var(--down); }
+.day.offday:not(.done):not(.rest):not(.miss) { opacity: .5; }
+.day.sel { outline: 2px solid var(--ink); outline-offset: 2px; }
+@media (max-width: 560px) { .inline-form.wrap-sm { flex-wrap: wrap; } .inline-form.wrap-sm .input[name="name"] { flex: 1 1 100%; } .inline-form.wrap-sm select.input { max-width: none !important; flex: 1; } }
+@media (max-width: 560px) { .routine-row .grow { flex-basis: 100%; } }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -535,6 +544,7 @@ const PILLARS = [
   { id: 'estudos',    n: '02', name: 'Estudos',    icon: 'book',   title: 'Leitura e aprendizados' },
   { id: 'emocional',  n: '03', name: 'Emocional',  icon: 'smile',  title: 'Check-in e balanço da semana' },
   { id: 'saude',      n: '04', name: 'Saúde',      icon: 'heart',  title: 'Treino, sono e movimento' },
+  { id: 'trabalho',   n: '05', name: 'Trabalho',   icon: 'briefcase', title: 'Expediente e evolução no trabalho' },
 ];
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -542,11 +552,13 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 function defaultState() {
   return {
     sample: false,
-    settings: { name: '', trainGoal: 5, sleepGoal: 8, pagesGoal: 15, habitName: 'Caminhada de 20 min' },
+    settings: { name: '', trainGoal: 5, sleepGoal: 8, pagesGoal: 15, habitName: 'Caminhada de 20 min',
+      work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 2, 3, 4] } },
     days: {},   // 'AAAA-MM-DD' -> { trained, sleep, energy, pages, habit }
     weeks: {},  // segunda 'AAAA-MM-DD' -> { feeling, good, insights, q1, q2, q3, ratings }
     records: [],
     books: [],
+    workGoals: [], // objetivos profissionais: { id, name, progress, updatedAt }
     tasks: [],  // rotina fixa: { id, name, pillar, days: [0-6, seg=0], from: 'AAAA-MM-DD' }
     finance: { categories: ['Moradia', 'Alimentação', 'Transporte', 'Lazer', 'Assinaturas e cursos'], months: {}, goals: [] },
   };
@@ -594,7 +606,7 @@ function sampleState() {
     const [feeling, q1, q2] = refl[w - 1];
     s.weeks[D.key(D.add(mon, -7 * w))] = {
       feeling, good: '', insights: '', q1, q2, q3: '',
-      ratings: { financeiro: 2 + Math.floor(r() * 3), estudos: 2 + Math.floor(r() * 4), emocional: 2 + Math.floor(r() * 4), saude: 2 + Math.floor(r() * 4) },
+      ratings: { trabalho: 3 + Math.floor(r() * 3), financeiro: 2 + Math.floor(r() * 3), estudos: 2 + Math.floor(r() * 4), emocional: 2 + Math.floor(r() * 4), saude: 2 + Math.floor(r() * 4) },
     };
   }
   s.weeks[D.key(mon)] = {
@@ -602,7 +614,8 @@ function sampleState() {
     good: 'Um café da manhã tranquilo antes de sair de casa.',
     insights: 'Percebi que meço meu valor pela produtividade. Quero terminar o dia reconhecendo o que deu certo.',
     q1: '', q2: '', q3: '',
-    ratings: { financeiro: 3, estudos: 4, emocional: 3, saude: 4 },
+    ratings: { financeiro: 3, estudos: 4, emocional: 3, saude: 4, trabalho: 4 },
+    work1: 'Organizei as notas fiscais do mês e atualizei a planilha de controle.', work2: 'Aprendi a emitir relatórios no sistema da empresa.', work3: '',
   };
   s.records = [{ id: uid(), text: 'Agachamento: 60kg' }, { id: uid(), text: '5km em 28min' }];
   s.books = [
@@ -619,6 +632,18 @@ function sampleState() {
     };
     if (j > 0) s.finance.months[mk].invoice = { name: `fatura-${mk}.pdf (exemplo)`, at: Date.now() - j * 30 * 864e5 };
   }
+  for (let i = 69; i >= 1; i--) {
+    const d = D.add(today, -i), wd = (d.getDay() + 6) % 7;
+    if (wd > 4) continue;
+    const roll = r();
+    s.days[D.key(d)].work = roll < 0.04 ? { status: 'folga' } : { status: 'ok', in: roll < 0.2 ? '13:40' : '13:30', out: roll > 0.85 ? '18:00' : '17:30' };
+  }
+  s.workGoals = [
+    { id: uid(), name: 'Dominar o sistema e as planilhas da empresa', progress: 60, updatedAt: Date.now() - 2 * 864e5 },
+    { id: uid(), name: 'Organizar o arquivo de documentos do setor', progress: 30, updatedAt: Date.now() - 10 * 864e5 },
+    { id: uid(), name: 'Concluir curso de Excel intermediário', progress: 80, updatedAt: Date.now() - 4 * 864e5 },
+  ];
+  s.tasks.push({ id: uid(), name: 'Conferir e-mails e agenda do setor', pillar: 'trabalho', days: [0, 1, 2, 3, 4], from });
   s.finance.goals = [
     { id: uid(), name: 'Reserva de emergência', target: 15000, current: 9300 },
     { id: uid(), name: 'Viagem (Portugal, 2027)', target: 12000, current: 4560 },
@@ -632,7 +657,8 @@ function normalize(raw) {
   s.settings = Object.assign(defaultState().settings, (raw && raw.settings) || {});
   s.finance = Object.assign(defaultState().finance, s.finance || {});
   ['days', 'weeks'].forEach(k => { if (!s[k] || typeof s[k] !== 'object') s[k] = {}; });
-  ['records', 'books', 'tasks'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
+  s.settings.work = Object.assign(defaultState().settings.work, (raw && raw.settings && raw.settings.work) || {});
+  ['records', 'books', 'tasks', 'workGoals'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   if (!s.finance.months || typeof s.finance.months !== 'object') s.finance.months = {};
   if (!Array.isArray(s.finance.goals)) s.finance.goals = [];
   if (!Array.isArray(s.finance.categories)) s.finance.categories = [];
@@ -643,7 +669,7 @@ function normalize(raw) {
 const clone = o => JSON.parse(JSON.stringify(o));
 function toDocs(s) {
   const docs = {
-    config: { v: 2, sample: !!s.sample, settings: s.settings, records: s.records, books: s.books, tasks: s.tasks, categories: s.finance.categories, goals: s.finance.goals },
+    config: { v: 2, sample: !!s.sample, settings: s.settings, records: s.records, books: s.books, tasks: s.tasks, workGoals: s.workGoals, categories: s.finance.categories, goals: s.finance.goals },
   };
   Object.entries(s.days).forEach(([k, v]) => { const id = 'd-' + k.slice(0, 7); (docs[id] = docs[id] || { days: {} }).days[k] = v; });
   Object.entries(s.weeks).forEach(([k, v]) => { const id = 'w-' + k.slice(0, 4); (docs[id] = docs[id] || { weeks: {} }).weeks[k] = v; });
@@ -652,7 +678,7 @@ function toDocs(s) {
 }
 function fromDocs(docs) {
   const c = docs.config || {};
-  const s = normalize({ sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, finance: { categories: c.categories, goals: c.goals, months: {} } });
+  const s = normalize({ sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, workGoals: c.workGoals, finance: { categories: c.categories, goals: c.goals, months: {} } });
   Object.entries(docs).forEach(([id, d]) => {
     if (id.startsWith('d-')) Object.assign(s.days, d.days || {});
     else if (id.startsWith('w-')) Object.assign(s.weeks, d.weeks || {});
@@ -798,6 +824,21 @@ const Calc = {
   expenses(mk) { const m = Store.state.finance.months[mk]; return m && m.categories ? Object.values(m.categories).reduce((a, b) => a + (+b || 0), 0) : 0; },
   goalPct(g) { return g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0; },
   mindAvg(wk) { const w = Store.state.weeks[wk]; if (!w || !w.ratings) return 0; const v = Object.values(w.ratings).filter(x => x > 0); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length) * 2 : 0; },
+  /* Trabalho */
+  toMin(t) { const [h, m] = String(t || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); },
+  isWorkday(d) { return (Store.state.settings.work.days || []).includes((d.getDay() + 6) % 7); },
+  shiftMin() { const w = Store.state.settings.work; return Math.max(0, Calc.toMin(w.end) - Calc.toMin(w.start)); },
+  workMin(k) {
+    const v = (Calc.dayVal(k).work) || {}, w = Store.state.settings.work;
+    if (v.status !== 'ok') return 0;
+    return Math.max(0, Calc.toMin(v.out || w.end) - Calc.toMin(v.in || w.start));
+  },
+  shiftNow() {
+    const w = Store.state.settings.work, now = new Date();
+    const s = Calc.toMin(w.start), e = Calc.toMin(w.end), n = now.getHours() * 60 + now.getMinutes();
+    const state = !Calc.isWorkday(D.today()) ? 'off' : n < s ? 'before' : n >= e ? 'after' : 'during';
+    return { state, s, e, n, pct: e > s ? clamp(((n - s) / (e - s)) * 100, 0, 100) : 0 };
+  },
   /* Tarefas de um dia: rotina fixa (que vale nesse dia da semana) + avulsas */
   tasksFor(k) {
     const S = Store.state, wd = (D.parse(k).getDay() + 6) % 7, day = S.days[k] || {}, done = day.done || {};
@@ -827,17 +868,23 @@ const Calc = {
     const fm = S.finance.months[mk] || {};
     const finOk = !!fm.invoice || !!(S.finance.months[pmk] || {}).invoice || Calc.income(mk) > 0 || Calc.expenses(mk) > 0;
     const sm = MONTHS_SHORT[today.getMonth()].toLowerCase();
+    const workdays = Calc.weekDays(mon).filter(Calc.isWorkday);
+    const before = workdays.filter(d => d < today).map(D.key);
+    const marked = k => ['ok', 'folga'].includes(((S.days[k] || {}).work || {}).status);
+    const workOk = before.every(marked);
+    const worked = workdays.filter(d => d <= today && (((S.days[D.key(d)] || {}).work || {}).status === 'ok')).length;
     return [
       { id: 'financeiro', ok: finOk, indicator: fm.invoice ? `fatura de ${sm} enviada` : (finOk ? 'mês em lançamento' : `fatura de ${sm} pendente`), goal: 'fatura e gastos do mês', rule: 'mês com lançamentos ou fatura enviada' },
       { id: 'estudos', ok: rs > 0, indicator: `${rs} ${rs === 1 ? 'dia seguido' : 'dias seguidos'} lendo`, goal: `${s.pagesGoal} páginas por dia`, rule: 'meta de páginas cumprida ontem ou hoje' },
       { id: 'emocional', ok: mind, indicator: mind ? `nota da semana: ${fmt(Calc.mindAvg(wk))}/10` : 'check-in pendente', goal: 'check-in semanal', rule: 'check-in da semana feito' },
+      { id: 'trabalho', ok: workOk, indicator: `${worked}/${workdays.length} dias de expediente`, goal: `${s.work.start} às ${s.work.end}`, rule: 'ponto marcado em todos os dias de trabalho até ontem' },
       { id: 'saude', ok: tr >= expected, indicator: `${tr}/${s.trainGoal} treinos essa semana`, goal: `${s.trainGoal} treinos por semana`, rule: 'treinos no ritmo da meta semanal' },
     ];
   },
 };
 
 /* ---------------- Componentes ---------------- */
-const UI = { state: { taskDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
+const UI = { state: { taskDay: D.todayKey(), workOffset: 0, workDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
 
 const ICONS = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -857,6 +904,8 @@ const ICONS = {
   check: '<polyline points="20 6 9 17 4 12"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   list: '<rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 9"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1024,7 +1073,7 @@ Views.visao = () => {
       <td><span class="badge ${x.ok ? 'dark' : 'light'}" title="${esc(x.rule)}">${x.ok ? 'Em dia' : 'Atenção'}</span></td></tr>`; }).join('');
 
   return `
-  ${pageHeader({ eyebrow: 'Visão geral', title: s.name ? `Olá, ${s.name}` : 'Painel da Vida', desc: 'Quatro pilares, um plano de ação e a evolução de cada um. Toque em um pilar para abrir os detalhes.', right: `<span class="date-pill">${icon('calendar')} ${esc(rangeLabel(mon))}</span>` })}
+  ${pageHeader({ eyebrow: 'Visão geral', title: s.name ? `Olá, ${s.name}` : 'Painel da Vida', desc: 'Cinco pilares, um plano de ação e a evolução de cada um. Toque em um pilar para abrir os detalhes.', right: `<span class="date-pill">${icon('calendar')} ${esc(rangeLabel(mon))}</span>` })}
   <div class="stats">
     ${statCard({ label: 'Consistência da semana', value: ok, unit: `/ ${total} pilares em dia`, foot: footText(`${longDate(today)} · semana em andamento`), dark: true })}
     ${statCard({ label: 'Saldo do mês', value: brl(saldo), foot: Calc.income(mk) ? footText(`${Math.round((saldo / Calc.income(mk)) * 100)}% da receita`) : footText('informe a receita no Financeiro') })}
@@ -1259,10 +1308,98 @@ Views.saude = () => {
     body: `<form class="inline-form" data-submit="addRecord" style="margin-bottom:14px"><input class="input" name="text" placeholder="ex: agachamento 60kg, 5km em 28min..." maxlength="120" required aria-label="Novo recorde"><button class="btn" type="submit">Adicionar</button></form><div class="list-editor">${records}</div>` })}`;
 };
 
+const hm = m => `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart(2, '0')}`;
+
+Views.trabalho = () => {
+  const S = Store.state, s = S.settings, w = s.work, ui = UI.state, today = D.today(), tk = D.key(today);
+  const thisMon = D.monday(today), mon = D.add(thisMon, 7 * ui.workOffset);
+  if (D.parse(ui.workDay) > today) ui.workDay = tk;
+  const sel = ui.workDay, selDate = D.parse(sel), selWork = Calc.dayVal(sel).work || {};
+  const sh = Calc.shiftNow(), shiftMin = Calc.shiftMin();
+
+  const week = Calc.weekDays(mon);
+  const workdays = week.filter(Calc.isWorkday);
+  const weekMin = week.reduce((a, d) => a + Calc.workMin(D.key(d)), 0);
+  const expectedMin = workdays.length * shiftMin;
+  const mk = D.monthKey(today);
+  const monthDays = Calc.upToToday(Calc.monthDates(mk)).filter(d => ((Calc.dayVal(D.key(d)).work) || {}).status === 'ok').length;
+  const goals = S.workGoals;
+  const goalsAvg = goals.length ? Math.round(goals.reduce((a, g) => a + g.progress, 0) / goals.length) : 0;
+
+  const todayWork = (Calc.dayVal(tk).work || {}).status;
+  let heroValue, heroUnit = '', heroFoot;
+  if (todayWork === 'folga') { heroValue = 'Folga'; heroFoot = 'marcado como folga hoje'; }
+  else if (sh.state === 'off') { heroValue = 'Sem expediente'; heroFoot = 'hoje não é dia de trabalho'; }
+  else if (sh.state === 'before') { heroValue = w.start; heroUnit = 'começa'; heroFoot = `faltam ${hm(sh.s - sh.n)} para entrar`; }
+  else if (sh.state === 'during') { heroValue = hm(sh.e - sh.n); heroUnit = 'para acabar'; heroFoot = `expediente em andamento · sai às ${w.end}`; }
+  else { heroValue = 'Encerrado'; heroFoot = todayWork === 'ok' ? `ponto marcado · ${hm(Calc.workMin(tk))}` : 'lembre de marcar o ponto de hoje'; }
+
+  const strip = week.map((d, i) => {
+    const k = D.key(d), st = ((Calc.dayVal(k).work) || {}).status, isW = Calc.isWorkday(d);
+    const cls = st === 'ok' ? 'done' : st === 'falta' ? 'miss' : st === 'folga' ? 'rest' : '';
+    const label = st === 'ok' ? 'trabalhou' : st === 'falta' ? 'falta' : st === 'folga' ? 'folga' : isW ? 'sem marcação' : 'não é dia de trabalho';
+    return `<button class="day ${cls} ${isW ? '' : 'offday'} ${k === tk ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-action="selectWorkDay" data-date="${k}" ${d > today ? 'disabled' : ''} aria-label="${WEEKDAYS[i]} ${d.getDate()}: ${label}" title="${label}"><span class="dot"></span>${WEEKDAYS[i]}</button>`;
+  }).join('');
+  const selLabel = sel === tk ? 'Hoje' : `${WEEKDAYS[(selDate.getDay() + 6) % 7]}, ${selDate.getDate()}/${selDate.getMonth() + 1}`;
+  const stBtn = (v, l) => `<button class="pill ${selWork.status === v ? 'active' : ''}" data-action="setWork" data-date="${sel}" data-v="${v}" aria-pressed="${selWork.status === v}">${l}</button>`;
+
+  const wk = D.key(thisMon), wn = S.weeks[wk] || {};
+  const note = (f, label, ph) => `<div class="field" style="margin-bottom:12px"><label for="work-${f}">${esc(label)}</label><textarea id="work-${f}" class="input" rows="2" data-input="mind" data-week="${wk}" data-field="${f}" data-k="work-${f}" placeholder="${esc(ph)}">${esc(wn[f] || '')}</textarea></div>`;
+
+  const tl = Calc.tasksFor(tk).filter(t => t.pillar === 'trabalho');
+  const goalRows = goals.length ? goals.map(g => `<div class="row routine-row">
+      <div class="grow"><div style="display:flex;justify-content:space-between;gap:8px"><span class="row-title" style="font-weight:500">${esc(g.name)}</span><span class="pct">${g.progress}%</span></div><div style="margin-top:9px">${progress(g.progress)}</div></div>
+      <button class="btn ghost sm" data-action="workStep" data-id="${g.id}" data-delta="-10" aria-label="Diminuir 10%">−10%</button>
+      <button class="btn ghost sm" data-action="workStep" data-id="${g.id}" data-delta="10" aria-label="Aumentar 10%">+10%</button>
+      ${removeBtn(`data-list="workGoals" data-id="${g.id}"`)}
+    </div>`).join('') : '<div class="empty">Nenhum objetivo ainda. Ex: dominar o sistema da empresa, fazer um curso.</div>';
+
+  return `
+  ${pillarHeader('trabalho', `${w.role} na ${w.company} · ${w.start} às ${w.end}`,
+    navGroup({ label: ui.workOffset === 0 ? 'Esta semana' : rangeLabel(mon), prevAttrs: 'data-action="shiftWork" data-delta="-1"', nextAttrs: 'data-action="shiftWork" data-delta="1"', nextDisabled: ui.workOffset >= 0 }))}
+  <div class="stats">
+    ${statCard({ label: 'Expediente de hoje', value: esc(heroValue), unit: heroUnit, foot: footText(heroFoot), dark: true })}
+    ${statCard({ label: ui.workOffset === 0 ? 'Horas na semana' : 'Horas nessa semana', value: hm(weekMin), unit: `/ ${hm(expectedMin)}`, foot: footText(`${week.filter(d => ((Calc.dayVal(D.key(d)).work) || {}).status === 'ok').length} de ${workdays.length} dias trabalhados`) })}
+    ${statCard({ label: 'Dias trabalhados no mês', value: monthDays, unit: monthDays === 1 ? 'dia' : 'dias', foot: footText(cap(MONTHS[today.getMonth()])) })}
+    ${statCard({ label: 'Objetivos profissionais', value: `${goalsAvg}%`, foot: footText(`média de ${goals.length} ${goals.length === 1 ? 'objetivo' : 'objetivos'}`) })}
+  </div>
+  <div class="grid g-2">
+    ${card({ title: 'Ponto da semana', sub: `${rangeLabel(mon)} · toque num dia para marcar`,
+      body: `<div class="days">${strip}</div>
+        <div class="card-foot" style="display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end">
+          <div><div class="field-label" style="margin-bottom:8px">${esc(selLabel)}</div><div class="pills on-card">${stBtn('ok', 'Trabalhei')}${stBtn('folga', 'Folga')}${stBtn('falta', 'Falta')}</div></div>
+          ${selWork.status === 'ok' ? `<div class="fields" style="flex:1;min-width:220px;max-width:320px">
+            <div class="field"><label for="w-in">Entrada</label><input id="w-in" class="input" type="time" value="${esc(selWork.in || w.start)}" data-change="workTime" data-date="${sel}" data-field="in" data-k="w-in"></div>
+            <div class="field"><label for="w-out">Saída</label><input id="w-out" class="input" type="time" value="${esc(selWork.out || w.end)}" data-change="workTime" data-date="${sel}" data-field="out" data-k="w-out"></div>
+          </div>` : ''}
+        </div>` })}
+    ${card({ title: 'Expediente de hoje', sub: sh.state === 'off' ? 'Hoje não é dia de trabalho' : `${w.start} às ${w.end} · ${hm(shiftMin)}`,
+      body: `<div class="kv"><span>${w.start}</span><b>${sh.state === 'during' ? `${Math.round(sh.pct)}% do expediente` : sh.state === 'after' ? 'encerrado' : sh.state === 'before' ? 'ainda não começou' : 'folga'}</b><span>${w.end}</span></div>
+        ${progress(sh.state === 'after' ? 100 : sh.state === 'during' ? sh.pct : 0, 'thick')}
+        <div class="card-foot">
+          <div class="kv" style="margin-bottom:6px"><span class="card-title" style="font-size:14px">Tarefas de trabalho de hoje</span><button class="btn ghost sm" data-nav="tarefas">Ver todas</button></div>
+          ${tl.length ? tl.map(t => taskRow(t, tk)).join('') : '<div class="empty">Nenhuma tarefa de trabalho para hoje.</div>'}
+          <form class="inline-form wrap-sm" data-submit="addTask" style="margin-top:12px">
+            <input type="hidden" name="pillar" value="trabalho"><input type="hidden" name="day" value="${tk}">
+            <input class="input" name="name" placeholder="Nova tarefa de trabalho" required maxlength="100" aria-label="Nova tarefa de trabalho">
+            <select class="input" name="repeat" style="max-width:130px" aria-label="Repetição"><option value="once">Só hoje</option><option value="weekdays">Dias úteis</option></select>
+            <button class="btn" type="submit" aria-label="Adicionar tarefa">${icon('plus')}</button>
+          </form>
+        </div>` })}
+  </div>
+  <div class="grid g-2">
+    ${card({ title: 'Registro da semana', sub: 'Anote para lembrar em avaliações e conversas com a chefia · salva sozinho',
+      body: `${note('work1', 'O que eu entreguei', 'ex: organizei as notas fiscais do mês')}${note('work2', 'O que eu aprendi', 'ex: emitir relatórios no sistema')}${note('work3', 'Onde preciso de ajuda', 'ex: dúvidas sobre o processo de compras')}` })}
+    ${card({ title: 'Objetivos profissionais', sub: 'Toque em "+10%" conforme for avançando',
+      body: `${goalRows}<form class="inline-form card-foot" data-submit="addWorkGoal"><input class="input" name="name" placeholder="Novo objetivo (ex: curso de Excel)" required maxlength="100" aria-label="Novo objetivo"><button class="btn" type="submit">Adicionar</button></form>` })}
+  </div>`;
+};
+
 Views.config = () => {
   const S = Store.state, s = S.settings;
   const setting = (key, label, type = 'number', extra = '') => `<div class="field"><label for="set-${key}">${esc(label)}</label><input id="set-${key}" class="input" type="${type}" value="${esc(s[key])}" data-change="setting" data-key="${key}" data-type="${type}" data-k="set-${key}" ${extra}></div>`;
   const cats = S.finance.categories;
+  const workSetting = (key, label, type) => `<div class="field"><label for="work-${key}">${esc(label)}</label><input id="work-${key}" class="input" type="${type}" value="${esc(s.work[key])}" data-change="workSetting" data-key="${key}" data-k="work-${key}" maxlength="60"></div>`;
   const where = Store.mode === 'cloud'
     ? 'Seus dados ficam guardados no Claude, na sua conta. Abra este mesmo link no celular ou no computador, logado na mesma conta, e verá os mesmos dados.'
     : 'O banco do Claude não está disponível nesta visualização, então os dados ficam só neste navegador. Abra o painel pelo link do Claude, logado, para sincronizar entre aparelhos.';
@@ -1275,6 +1412,16 @@ Views.config = () => {
         ${setting('trainGoal', 'Treinos por semana', 'number', 'min="1" max="7"')}
         ${setting('sleepGoal', 'Horas de sono por noite', 'number', 'min="4" max="12" step="0.5"')}
         ${setting('pagesGoal', 'Páginas por dia', 'number', 'min="1" max="500"')}</div>` })}
+    ${card({ title: 'Trabalho', sub: 'Usado no pilar Trabalho', body: `<div class="fields">
+        ${workSetting('company', 'Empresa', 'text')}
+        ${workSetting('role', 'Cargo', 'text')}
+        ${workSetting('start', 'Entrada', 'time')}
+        ${workSetting('end', 'Saída', 'time')}
+      </div>
+      <div class="field" style="margin-top:14px"><span class="field-label">Dias de trabalho</span>
+        <div class="wd" role="group" aria-label="Dias de trabalho">${WEEKDAYS.map((w, i) => `<button class="${s.work.days.includes(i) ? 'on' : ''}" data-action="toggleWorkDay" data-wd="${i}" aria-pressed="${s.work.days.includes(i)}">${w}</button>`).join('')}</div></div>` })}
+  </div>
+  <div class="grid g-2">
     ${card({ title: 'Categorias de gastos', sub: 'Usadas no pilar Financeiro',
       body: `<div class="list-editor">${cats.length ? cats.map(c => `<div class="row"><div class="grow">${esc(c)}</div>${removeBtn(`data-list="categories" data-id="${esc(c)}"`)}</div>`).join('') : '<div class="empty">Lista vazia.</div>'}</div>
         <form class="inline-form card-foot" data-submit="addCategory"><input class="input" name="name" placeholder="Nova categoria (ex: Saúde)" required maxlength="40" aria-label="Nova categoria"><button class="btn" type="submit">Adicionar</button></form>` })}
@@ -1379,16 +1526,37 @@ const Actions = {
     if (days.has(n)) { if (days.size === 1) { toast('A tarefa precisa de pelo menos um dia'); return false; } days.delete(n); } else days.add(n);
     t.days = [...days].sort();
   },
+  setWork({ date, v }) {
+    const d = Store.day(date), w = Store.state.settings.work, cur = (d.work || {}).status;
+    if (cur === v) { delete d.work; return; }
+    d.work = v === 'ok' ? { status: 'ok', in: (d.work && d.work.in) || w.start, out: (d.work && d.work.out) || w.end } : { status: v };
+  },
+  selectWorkDay({ date }) { if (D.parse(date) > D.today()) return false; UI.state.workDay = date; },
+  shiftWork({ delta }) {
+    UI.state.workOffset = Math.min(0, UI.state.workOffset + Number(delta));
+    const mon = D.add(D.monday(D.today()), 7 * UI.state.workOffset);
+    UI.state.workDay = UI.state.workOffset === 0 ? D.todayKey() : D.key(D.add(mon, 4));
+  },
+  toggleWorkDay({ wd }) {
+    const w = Store.state.settings.work, n = Number(wd), days = new Set(w.days);
+    if (days.has(n)) { if (days.size === 1) { toast('Escolha pelo menos um dia de trabalho'); return false; } days.delete(n); } else days.add(n);
+    w.days = [...days].sort();
+  },
+  workStep({ id, delta }) {
+    const g = Store.state.workGoals.find(x => x.id === id); if (!g) return false;
+    g.progress = clamp(g.progress + Number(delta), 0, 100); g.updatedAt = Date.now();
+    if (g.progress === 100 && Number(delta) > 0) toast(`Objetivo concluído: ${g.name} 🎉`);
+  },
   shiftTaskDay({ delta }) { UI.state.taskDay = D.key(D.add(D.parse(UI.state.taskDay), Number(delta))); },
   remove({ list, id, date }) {
     const S = Store.state;
     const doIt = () => {
       if (list === 'categories') S.finance.categories = S.finance.categories.filter(c => c !== id);
       else if (list === 'todos') { const d = Store.day(date); d.todos = (d.todos || []).filter(x => x.id !== id); }
-      else { const arr = { records: S.records, books: S.books, goals: S.finance.goals, tasks: S.tasks }[list]; const i = arr ? arr.findIndex(x => x.id === id) : -1; if (i >= 0) arr.splice(i, 1); }
+      else { const arr = { records: S.records, books: S.books, goals: S.finance.goals, tasks: S.tasks, workGoals: S.workGoals }[list]; const i = arr ? arr.findIndex(x => x.id === id) : -1; if (i >= 0) arr.splice(i, 1); }
       commit();
     };
-    const msg = { books: 'Remover este livro?', goals: 'Remover esta meta e os aportes registrados?', tasks: 'Remover esta tarefa da rotina? Ela deixa de aparecer nos próximos dias.' }[list];
+    const msg = { books: 'Remover este livro?', goals: 'Remover esta meta e os aportes registrados?', workGoals: 'Remover este objetivo?', tasks: 'Remover esta tarefa da rotina? Ela deixa de aparecer nos próximos dias.' }[list];
     if (msg) ask(msg, 'Remover', doIt, true); else doIt();
     return false;
   },
@@ -1407,12 +1575,13 @@ const Actions = {
 };
 
 const Forms = {
-  addTask({ name, pillar: p, repeat }) {
+  addTask({ name, pillar: p, repeat, day }) {
     const n = name.trim(); if (!n) return false;
-    const k = UI.state.taskDay;
+    const k = day || UI.state.taskDay;
     if (repeat === 'once') { const d = Store.day(k); d.todos = d.todos || []; d.todos.push({ id: uid(), name: n, pillar: p || '', done: false }); }
     else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey() });
   },
+  addWorkGoal({ name }) { Store.state.workGoals.push({ id: uid(), name: name.trim(), progress: 0, updatedAt: Date.now() }); },
   addRecord({ text }) { Store.state.records.unshift({ id: uid(), text: text.trim() }); },
   addCategory({ name }) {
     const n = name.trim(), cats = Store.state.finance.categories;
@@ -1430,6 +1599,17 @@ const Forms = {
 };
 
 const Changes = {
+  workSetting(v, { key }) {
+    const w = Store.state.settings.work, val = v.trim();
+    if ((key === 'start' || key === 'end') && !/^\d{2}:\d{2}$/.test(val)) return false;
+    w[key] = val;
+    if (Calc.toMin(w.end) <= Calc.toMin(w.start)) toast('A saída está antes da entrada. Confira os horários.');
+  },
+  workTime(v, { date, field }) {
+    const d = Store.day(date);
+    if (!/^\d{2}:\d{2}$/.test(v)) return false;
+    d.work = Object.assign({ status: 'ok' }, d.work || {}, { [field]: v });
+  },
   setting(v, { key, type }) {
     const s = Store.state.settings;
     if (type === 'number') { const n = +v; if (!(n > 0)) return false; s[key] = key === 'sleepGoal' ? Math.round(n * 2) / 2 : Math.round(n); }
@@ -1502,6 +1682,8 @@ window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); }
 
 render();
 boot();
+/* Atualiza o relógio do expediente a cada minuto */
+setInterval(() => { if (Store.mode !== 'loading' && !UI.modal && ['trabalho', 'visao'].includes(route())) safeRender(); }, 60000);
 if (window.claude && typeof window.claude.use === 'function') {
   window.claude.use('assets').then(a => { UI.assets = a; UI.canUpload = !!a; if (Store.mode !== 'loading') safeRender(); }).catch(() => {});
 }

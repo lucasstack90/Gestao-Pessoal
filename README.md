@@ -1,7 +1,7 @@
 # Gestão Pessoal · Painel da Vida
 
-Painel pessoal para acompanhar e desenvolver **4 pilares da vida**: financeiro, estudos,
-emocional e saúde. Visual monocromático (cartões brancos, destaque escuro, pílulas e barras
+Painel pessoal para acompanhar e desenvolver **5 pilares da vida**: financeiro, estudos,
+emocional, saúde e trabalho, além das tarefas do dia. Visual monocromático (cartões brancos, destaque escuro, pílulas e barras
 arredondadas), com modo escuro.
 
 ## Onde usar
@@ -26,6 +26,7 @@ mas aí os dados ficam salvos só naquele navegador.
 | 02 · Estudos | Meta de páginas por dia, sequência, últimos 14 dias, livros com previsão de término |
 | 03 · Emocional | Check-in semanal, nota de 1 a 5 por pilar, insights e 3 perguntas fixas |
 | 04 · Saúde | Treinos da semana, últimas 6 semanas, horas de sono e energia, hábito diário, recordes pessoais |
+| 05 · Trabalho | Expediente de hoje (auxiliar administrativo na Gerar, 13:30 às 17:30) com tempo restante, ponto da semana (trabalhei, folga, falta, entrada e saída), horas na semana, tarefas de trabalho, registro semanal (entregas, aprendizados, onde preciso de ajuda) e objetivos profissionais |
 
 ### Quando um pilar está "em dia"
 
@@ -33,9 +34,10 @@ mas aí os dados ficam salvos só naquele navegador.
 - **Estudos**: meta de páginas cumprida ontem ou hoje
 - **Emocional**: check-in da semana feito
 - **Saúde**: treinos no ritmo da meta semanal até hoje
+- **Trabalho**: ponto marcado em todos os dias de trabalho até ontem
 
 ## Como os dados são guardados
 
 No Claude, cada pessoa logada tem uma área privada no banco do Artifact (`data/users/<id>`), dividida em:
-`config` (metas, rotina fixa, livros, recordes, categorias, metas financeiras), `d-AAAA-MM` (registros diários do mês, incluindo tarefas marcadas),
+`config` (metas, dados do trabalho, objetivos profissionais, rotina fixa, livros, recordes, categorias, metas financeiras), `d-AAAA-MM` (registros diários do mês, incluindo tarefas marcadas),
 `f-AAAA-MM` (finanças do mês) e `w-AAAA` (check-ins semanais do ano).
