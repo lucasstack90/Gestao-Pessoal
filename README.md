@@ -1,8 +1,8 @@
 # Gestão Pessoal · Painel da Vida
 
 Painel pessoal para acompanhar e desenvolver **5 pilares da vida**: financeiro, estudos,
-emocional, saúde e trabalho, além das tarefas do dia. Visual monocromático (cartões brancos, destaque escuro, pílulas e barras
-arredondadas), com modo escuro.
+emocional, saúde e trabalho, além das tarefas do dia. Visual com azul elétrico como cor de destaque (menu, seleções, barras e progresso), cartões arredondados,
+botões em pílula e modo escuro quase preto, que acompanha o tema do aparelho.
 
 ## Onde usar
 
