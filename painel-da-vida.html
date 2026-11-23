@@ -610,7 +610,7 @@ function defaultState() {
   return {
     sample: false,
     settings: { name: '', trainGoal: 5, sleepGoal: 8, pagesGoal: 15, habitName: 'Caminhada de 20 min',
-      work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 2, 3, 4], gmailOn: false, gmailDomain: 'gerar.org.br', gmailSyncedAt: 0 } },
+      work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 2, 3, 4], gmailOn: false, gmailDomain: 'gerar.org.br', gmailSince: 0, gmailV: 0 } },
     days: {},   // 'AAAA-MM-DD' -> { trained, sleep, energy, pages, habit }
     weeks: {},  // segunda 'AAAA-MM-DD' -> { feeling, good, insights, q1, q2, q3, ratings }
     records: [],
@@ -1413,11 +1413,34 @@ function relTime(ms) {
   const d = new Date(ms); return `${d.getDate()}/${d.getMonth() + 1}`;
 }
 
+const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const cleanSubject = s => String(s || '').replace(/^\s*((re|res|fw|fwd|enc)\s*:\s*)+/i, '').trim() || '(sem assunto)';
+const isMine = m => (m.labelIds || []).includes('SENT');
+function displayName(m) {
+  const email = String(m.sender || '').toLowerCase();
+  const hit = (m.addressDisplayNames || []).find(a => String(a.emailAddress || '').toLowerCase() === email);
+  return (hit && hit.displayName) || senderOf(m.sender);
+}
+
 const Gmail = {
   mcp: null, state: 'off', code: '', lastSync: 0, unsub: [], started: false, inited: false, attachIds: new Set(),
-  query() { return `from:${Store.state.settings.work.gmailDomain || 'gerar.org.br'} -in:sent newer_than:30d`; },
+  PAGE: 25,
+  /* Só a caixa de entrada, só e-mails do domínio, só a partir do início do acompanhamento */
+  query() {
+    const w = Store.state.settings.work;
+    return `in:inbox from:${w.gmailDomain || 'gerar.org.br'} after:${Math.floor((w.gmailSince || startOfToday()) / 1000)}`;
+  },
+  /* Versão anterior importava 30 dias: limpa demandas antigas e passa a contar só a partir de hoje */
+  migrate() {
+    const w = Store.state.settings.work;
+    if (!w.gmailOn || w.gmailV === 2) return false;
+    w.gmailSince = startOfToday(); w.gmailV = 2;
+    Store.state.demands = Store.state.demands.filter(d => d.src !== 'gmail' || d.status === 'andamento' || d.date >= w.gmailSince);
+    return true;
+  },
   async init() {
     if (this.inited) return; this.inited = true;
+    if (this.migrate()) { Sync.push(); safeRender(); }
     try { this.mcp = window.claude && window.claude.use ? await window.claude.use('mcp') : null; } catch (e) { this.mcp = null; }
     if (!this.mcp) { this.state = 'unavailable'; safeRender(); return; }
     if (Store.state.settings.work.gmailOn) this.start(); else safeRender();
@@ -1427,8 +1450,8 @@ const Gmail = {
     this.started = true; this.state = 'connecting';
     const q = this.query(), opts = { refetchInterval: 300000 };
     try {
-      this.unsub.push(this.mcp.watchTool('Gmail', 'search_threads', { query: q, pageSize: 25, view: 'THREAD_VIEW_SUMMARY' }, ev => this.onEvent(ev, 'main'), opts));
-      this.unsub.push(this.mcp.watchTool('Gmail', 'search_threads', { query: q + ' has:attachment', pageSize: 25, view: 'THREAD_VIEW_IDS_ONLY' }, ev => this.onEvent(ev, 'attach'), opts));
+      this.unsub.push(this.mcp.watchTool('Gmail', 'search_threads', { query: q, pageSize: this.PAGE, view: 'THREAD_VIEW_SUMMARY' }, ev => this.onEvent(ev, 'main'), opts));
+      this.unsub.push(this.mcp.watchTool('Gmail', 'search_threads', { query: q + ' has:attachment', pageSize: this.PAGE, view: 'THREAD_VIEW_IDS_ONLY' }, ev => this.onEvent(ev, 'attach'), opts));
     } catch (e) { this.fail(e); }
   },
   stop() { this.unsub.forEach(u => { try { u(); } catch (e) { /* já encerrado */ } }); this.unsub = []; this.started = false; },
@@ -1436,16 +1459,25 @@ const Gmail = {
   /* Chamado só por clique: a primeira leitura pede sua permissão para o Gmail */
   async connect() {
     if (!this.mcp) { toast('Abra o painel pelo link no Claude para conectar o Gmail.'); return; }
+    const w = Store.state.settings.work;
+    if (!w.gmailOn) { w.gmailSince = startOfToday(); w.gmailV = 2; }
     this.state = 'connecting'; render();
     try {
-      const r = await this.mcp.callTool('Gmail', 'search_threads', { query: this.query(), pageSize: 25, view: 'THREAD_VIEW_SUMMARY' });
-      Store.state.settings.work.gmailOn = true;
+      const r = await this.mcp.callTool('Gmail', 'search_threads', { query: this.query(), pageSize: this.PAGE, view: 'THREAD_VIEW_SUMMARY' });
+      w.gmailOn = true;
       this.state = 'ok'; this.code = ''; this.lastSync = Date.now();
       this.ingest(r.payload);
       this.restart();
       commit();
-      toast('Gmail conectado. Novas demandas vão aparecer aqui.');
+      toast('Gmail conectado. Demandas novas da caixa de entrada vão aparecer aqui.');
     } catch (e) { this.fail(e); render(); }
+  },
+  /* Recomeça a contagem a partir de hoje e tira da lista o que veio do Gmail antes disso */
+  resetSince() {
+    const w = Store.state.settings.work;
+    w.gmailSince = startOfToday(); w.gmailV = 2;
+    Store.state.demands = Store.state.demands.filter(d => d.src !== 'gmail' || d.status === 'andamento' || d.date >= w.gmailSince);
+    if (w.gmailOn) this.restart();
   },
   onEvent(ev, kind) {
     if (Store.mode === 'loading') return;
@@ -1464,23 +1496,36 @@ const Gmail = {
   },
   ingest(p) {
     const threads = p && Array.isArray(p.threads) ? p.threads : [];
-    const w = Store.state.settings.work, initial = !w.gmailSyncedAt, added = [];
+    const S = Store.state, w = S.settings.work, since = w.gmailSince || startOfToday();
+    const added = [], seenIds = new Set();
+    let changed = false;
     threads.forEach(t => {
-      const msgs = t.messages || [], m = msgs[msgs.length - 1] || {};
-      const count = t.messageCount || msgs.length || 1;
-      const ex = Store.state.demands.find(d => d.src === 'gmail' && d.thread === t.id);
+      const last = (t.messages || [])[(t.messages || []).length - 1] || {};
+      const date = Number(last.internalDate) || parseDate(last.date) || Date.now();
+      const mine = isMine(last);
+      const ex = S.demands.find(d => d.src === 'gmail' && d.thread === t.id);
+      seenIds.add(t.id);
       if (!ex) {
-        const d = { id: uid(), src: 'gmail', thread: t.id, from: senderOf(m.sender), subject: m.subject || '(sem assunto)', url: t.viewUrl || m.viewUrl || '', date: parseDate(m.date) || Date.now(), count, attach: this.attachIds.has(t.id), status: 'nova', seen: initial };
-        Store.state.demands.push(d);
-        if (!initial) added.push(d);
-      } else if (count > (ex.count || 1)) {
-        Object.assign(ex, { count, seen: false, reply: true, date: parseDate(m.date) || Date.now() });
-        if (ex.status === 'concluida') ex.status = 'andamento';
-        added.push(ex);
+        if (mine) return; // você já respondeu: não é demanda pendente
+        const d = { id: uid(), src: 'gmail', thread: t.id, from: displayName(last), subject: cleanSubject(last.subject), url: t.viewUrl || last.viewUrl || '', date, attach: this.attachIds.has(t.id), status: 'nova', seen: false };
+        S.demands.push(d); added.push(d); changed = true;
+      } else if (mine) {
+        if (ex.status !== 'concluida') { ex.status = 'concluida'; ex.doneAt = date; ex.doneBy = 'reply'; ex.seen = true; ex.reply = false; changed = true; }
+      } else if (date > (ex.date || 0)) {
+        Object.assign(ex, { date, seen: false, reply: true, from: displayName(last) });
+        if (ex.status === 'concluida') { ex.status = 'andamento'; delete ex.doneAt; delete ex.doneBy; }
+        added.push(ex); changed = true;
       }
     });
-    if (initial) w.gmailSyncedAt = Date.now();
-    if (added.length || initial) { Store.fresh = false; Sync.push(); }
+    /* Saiu da caixa de entrada (arquivado ou apagado no Gmail): conclui a demanda */
+    if (threads.length < this.PAGE) {
+      S.demands.forEach(d => {
+        if (d.src === 'gmail' && d.status === 'nova' && d.date >= since && !seenIds.has(d.thread) && !String(d.thread).startsWith('exemplo')) {
+          d.status = 'concluida'; d.doneAt = Date.now(); d.doneBy = 'archive'; d.seen = true; changed = true;
+        }
+      });
+    }
+    if (changed) { Store.fresh = false; Sync.push(); }
     if (added.length) toast(added.length === 1 ? `Nova demanda: ${added[0].subject}` : `${added.length} novas demandas do trabalho`);
     safeRender();
   },
@@ -1506,7 +1551,7 @@ function demandRow(d) {
     <span class="dem-src" title="${d.src === 'gmail' ? 'Veio do Gmail' : 'Adicionada à mão'}">${icon(d.src === 'gmail' ? 'mail' : 'user')}</span>
     <div class="grow">
       <div class="row-title">${esc(d.subject)}</div>
-      <div class="row-sub">${esc(d.from || 'sem remetente')} · ${relTime(d.date)}${d.attach ? ` · ${icon('clip', 'mini')} anexo` : ''}${d.reply ? ' · <b>nova resposta</b>' : ''}</div>
+      <div class="row-sub">${esc(d.from || 'sem remetente')} · ${relTime(d.date)}${d.attach ? ` · ${icon('clip', 'mini')} anexo` : ''}${d.reply ? ' · <b>nova resposta</b>' : ''}${d.status === 'concluida' && d.doneBy === 'reply' ? ' · respondida por você' : d.status === 'concluida' && d.doneBy === 'archive' ? ' · arquivada no Gmail' : ''}</div>
     </div>
     <span class="badge ${d.status === 'nova' ? 'dark' : 'light'}">${st}</span>
     <div class="dem-actions">
@@ -1527,13 +1572,13 @@ function demandsCard() {
   let connect = '';
   if (G.state !== 'unavailable' && (!w.gmailOn || (G.state === 'error' && NEEDS_ALLOW.includes(G.code)))) {
     connect = `<div class="connect">${icon('mail')}<div class="grow"><b>${w.gmailOn ? 'Permita a leitura do Gmail' : 'Receba demandas do Gmail automaticamente'}</b>
-      <div class="row-sub">Todo e-mail de @${esc(w.gmailDomain)} vira uma demanda aqui. O painel só lê: não responde, não apaga e não marca nada no seu e-mail.</div></div>
+      <div class="row-sub">E-mails de @${esc(w.gmailDomain)} que chegarem na caixa de entrada a partir de hoje viram demanda. Se você responder ou arquivar no Gmail, ela é concluída sozinha. O painel só lê: não responde, não apaga e não marca nada.</div></div>
       <button class="btn" data-action="gmailConnect" ${G.state === 'connecting' ? 'disabled' : ''}>${G.state === 'connecting' ? 'Conectando…' : (w.gmailOn ? 'Permitir acesso' : 'Conectar Gmail')}</button></div>`;
   }
-  return card({ title: 'Demandas do trabalho', sub: `E-mails de @${w.gmailDomain} e pedidos que você anotar`,
+  return card({ title: 'Demandas do trabalho', sub: `Caixa de entrada: e-mails de @${w.gmailDomain} desde ${new Date(w.gmailSince || startOfToday()).toLocaleDateString('pt-BR')}, e pedidos que você anotar`,
     right: `<div class="pills on-card">${pills}</div>`,
     body: `<div style="margin:-6px 0 14px">${gmailLine()}</div>${connect}
-      ${list.length ? list.map(demandRow).join('') : `<div class="empty">${ui.demFilter === 'abertas' ? 'Nenhuma demanda aberta. Quando chegar e-mail da Gerar, ele aparece aqui.' : 'Nenhuma demanda concluída ainda.'}</div>`}
+      ${list.length ? list.map(demandRow).join('') : `<div class="empty">${ui.demFilter === 'abertas' ? 'Nenhuma demanda aberta. Quando chegar e-mail da Gerar na caixa de entrada, ele aparece aqui.' : 'Nenhuma demanda concluída ainda.'}</div>`}
       <form class="inline-form wrap-sm card-foot" data-submit="addDemand">
         <input class="input" name="subject" placeholder="Anotar demanda (ex: pedido feito pessoalmente)" required maxlength="140" aria-label="Nova demanda">
         <input class="input" name="from" placeholder="Quem pediu" maxlength="60" style="max-width:170px" aria-label="Quem pediu">
@@ -1653,7 +1698,7 @@ Views.config = () => {
       </div>
       <div class="field" style="margin-top:14px"><span class="field-label">Integração com o Gmail</span>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${gmailLine()}
-          ${s.work.gmailOn ? '<button class="btn ghost sm" data-action="gmailOff">Desligar</button>' : '<button class="btn sm" data-action="gmailConnect">Conectar Gmail</button>'}</div></div>
+          ${s.work.gmailOn ? '<button class="btn ghost sm" data-action="gmailReset">Começar a contar de hoje</button><button class="btn ghost sm" data-action="gmailOff">Desligar</button>' : '<button class="btn sm" data-action="gmailConnect">Conectar Gmail</button>'}</div></div>
       <div class="field" style="margin-top:14px"><span class="field-label">Dias de trabalho</span>
         <div class="wd" role="group" aria-label="Dias de trabalho">${WEEKDAYS.map((w, i) => `<button class="${s.work.days.includes(i) ? 'on' : ''}" data-action="toggleWorkDay" data-wd="${i}" aria-pressed="${s.work.days.includes(i)}">${w}</button>`).join('')}</div></div>` })}
   </div>
@@ -1798,6 +1843,10 @@ const Actions = {
   },
   demSeen({ id }) { const d = Store.state.demands.find(x => x.id === id); if (d && !d.seen) { d.seen = true; Sync.push(); } return false; },
   gmailConnect() { Gmail.connect(); return false; },
+  gmailReset() {
+    ask('Tirar da lista as demandas do Gmail que chegaram antes de hoje e acompanhar só o que chegar a partir de agora? As que estão em andamento continuam.', 'Começar de hoje', () => { Gmail.resetSince(); commit(); toast('Pronto: só demandas de hoje em diante.'); });
+    return false;
+  },
   gmailOff() {
     ask('Desligar a leitura do Gmail? As demandas já salvas continuam no painel.', 'Desligar', () => { Store.state.settings.work.gmailOn = false; Gmail.stop(); Gmail.state = 'off'; commit(); });
     return false;

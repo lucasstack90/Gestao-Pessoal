@@ -45,7 +45,13 @@ No Claude, cada pessoa logada tem uma área privada no banco do Artifact (`data/
 ## Integração com o Gmail
 
 O módulo Trabalho lê o Gmail conectado à conta Claude (conector Gmail, ferramenta `search_threads`, só leitura).
-Busca usada: `from:<domínio> -in:sent newer_than:30d` (domínio padrão `gerar.org.br`, configurável).
-Cada conversa nova vira uma demanda; uma resposta nova numa conversa já salva também avisa.
+Busca usada: `in:inbox from:<domínio> after:<início do acompanhamento>` (domínio padrão `gerar.org.br`).
+
+- Só entram e-mails que estão na **caixa de entrada** e chegaram **a partir do dia em que o Gmail foi conectado**
+  (ou do dia em que você tocar em "Começar a contar de hoje", em Configurações).
+- Se a última mensagem da conversa é sua (você respondeu), a demanda é concluída sozinha e nem entra como nova.
+- Se o e-mail sai da caixa de entrada (arquivado ou apagado), a demanda nova é concluída sozinha.
+- Se a pessoa responde de novo, a demanda volta como "nova resposta".
+
 O painel confere a cada 5 minutos enquanto está aberto e avisa com um número no menu, uma faixa no topo e
 o número no título da aba. Nada é alterado no Gmail. As demandas ficam no documento `demands` do banco.
