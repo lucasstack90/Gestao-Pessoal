@@ -75,6 +75,7 @@ pronto às 5h). Ela lê, com a sua conta, a área do painel no banco (`data/user
 está disponível na execução, os e-mails de trabalho da caixa de entrada (últimos 3 dias, sem as conversas que você já respondeu).
 Depois grava o documento `brief` e manda um push no celular. O painel mostra o cartão **Resumo do dia** no topo da Visão geral.
 
+- Para ler o Gmail, o conector **Gmail** precisa estar ligado na própria rotina (tela de Rotinas do Claude Code na web); a criação pela ferramenta não anexa conectores. Sem ele, o resumo sai só com o painel e avisa "Não consegui ler o Gmail hoje".
 - A tarefa só escreve no documento `brief`. Nunca envia, apaga, arquiva nem marca e-mails.
 - O painel ignora o `brief` na sincronização (só os documentos que ele conhece são gravados ou apagados).
 - Formato do `brief`: `v`, `date` (AAAA-MM-DD), `generatedAt` (ms), `headline`, `summary`,
