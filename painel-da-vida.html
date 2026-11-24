@@ -610,6 +610,19 @@ a.link { color: var(--accent-ink); }
 .fx-form .btn { grid-column: 1 / -1; justify-content: center; }
 @media (max-width: 560px) { .focus-ring { width: 150px; height: 150px; } .focus-ring::before { width: 124px; height: 124px; } .focus-ring span { font-size: 30px; } .focus { justify-content: center; } }
 
+/* ---------- Resumo do dia ---------- */
+.brief-head { font-size: 17px; font-weight: 600; letter-spacing: -.01em; line-height: 1.35; margin-bottom: 6px; }
+.brief-sum { color: var(--ink-2); line-height: 1.55; margin: 0 0 6px; }
+.brief-sec { font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-ink); margin: 18px 0 4px; }
+.brief-item { display: flex; align-items: flex-start; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.brief-item .grow { flex: 1 1 220px; min-width: 0; }
+.brief-item .row-title { overflow-wrap: anywhere; }
+.brief-n { width: 24px; height: 24px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.brief-ask { margin-top: 6px; font-size: 13px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
+.brief-watch { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); line-height: 1.6; font-size: 13.5px; }
+.brief-item a.btn { text-decoration: none; }
+.card.brief { margin-bottom: 16px; }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -846,6 +859,7 @@ function stable(v) {
 const LOCAL_KEY = 'painel-vida:v2';
 const Store = {
   state: null,
+  brief: null,   // resumo do dia escrito pelo Claude (documento `brief`)
   mode: 'loading',     // loading | cloud | local
   loadNote: '',
   day(k) { return this.state.days[k] || (this.state.days[k] = {}); },
@@ -911,23 +925,33 @@ async function boot() {
 
   Sync.col = db.collection('data/users/' + id);
   const timer = setTimeout(() => { if (Store.mode === 'loading') { Store.loadNote = 'O banco do Claude ainda não respondeu. Confira a conexão; o painel abre assim que os dados chegarem.'; render(); } }, 10000);
+  const managed = id => id === 'config' || id === 'demands' || /^[dwfn]-/.test(id);
   Sync.col.onSnapshot(snap => {
     const docs = {}, json = {};
-    snap.docs.forEach(d => { if (d.exists) { docs[d.id] = d.data(); json[d.id] = stable(docs[d.id]); } });
+    let brief = null;
+    snap.docs.forEach(d => {
+      if (!d.exists) return;
+      if (d.id === 'brief') { brief = d.data(); return; } // escrito pelo Claude às 5h; o painel só lê
+      if (managed(d.id)) { docs[d.id] = d.data(); json[d.id] = stable(docs[d.id]); }
+    });
+    const empty = Object.keys(docs).length === 0;
     if (Store.mode === 'loading') {
       if (snap.metadata.fromCache && snap.empty) return; // espera a resposta do banco
       clearTimeout(timer);
       Store.mode = 'cloud';
+      Store.brief = brief;
       Sync.written = json;
-      Store.fresh = snap.empty;
-      Store.state = snap.empty ? defaultState() : fromDocs(docs);
+      Store.fresh = empty;
+      Store.state = empty ? defaultState() : fromDocs(docs);
       render();
       Gmail.init(); Focus.init();
       return;
     }
-    if (Sync.saving()) return;
+    const briefChanged = stable(brief) !== stable(Store.brief);
+    Store.brief = brief;
+    if (Sync.saving()) { if (briefChanged) safeRender(); return; }
     const same = Object.keys(json).length === Object.keys(Sync.written).length && Object.keys(json).every(k => json[k] === Sync.written[k]);
-    if (same) return;
+    if (same) { if (briefChanged) safeRender(); return; }
     Sync.written = json;
     Store.state = fromDocs(docs);
     Store.fresh = false;
@@ -1242,6 +1266,41 @@ function overviewSeries(metric, period) {
   };
 }
 
+const BRIEF_SRC = { email: 'E-mail', trabalho: 'Trabalho', tarefa: 'Tarefa', estudos: 'Estudos', financeiro: 'Financeiro', saude: 'Saúde', emocional: 'Emocional' };
+function briefCard() {
+  const B = Store.brief;
+  if (Store.mode !== 'cloud') return '';
+  if (!B || !B.date) return card({ cls: 'brief', title: 'Resumo do dia', sub: 'Chega todo dia de manhã',
+    body: '<div class="empty">Ainda não há resumo. Todo dia às 5h o Claude confere seu e-mail e o painel e deixa aqui o que você precisa fazer.</div>' });
+  const today = B.date === D.todayKey(), when = /^\d{4}-\d{2}-\d{2}$/.test(B.date) ? D.parse(B.date) : D.today();
+  const txt = (v, n) => esc(String(v || '').slice(0, n));
+  const ok = u => typeof u === 'string' && /^https:\/\/mail\.google\.com\//.test(u);
+  const prios = (Array.isArray(B.priorities) ? B.priorities : []).slice(0, 10).map((p, i) => `<div class="brief-item">
+      <span class="brief-n">${i + 1}</span>
+      <div class="grow"><div class="row-title">${txt(p.title, 140)}</div>${p.detail ? `<div class="row-sub">${txt(p.detail, 280)}</div>` : ''}</div>
+      ${BRIEF_SRC[p.source] ? `<span class="tag">${BRIEF_SRC[p.source]}</span>` : ''}
+      ${ROUTES.includes(p.go) ? `<button class="btn ghost sm" data-nav="${p.go}">Abrir</button>` : ''}
+    </div>`).join('');
+  const mails = (Array.isArray(B.emails) ? B.emails : []).slice(0, 8).map(m => `<div class="brief-item">
+      <span class="dem-src">${icon('mail')}</span>
+      <div class="grow"><div class="row-title">${txt(m.subject, 140)}</div>
+        <div class="row-sub">${txt(m.from, 80)}${m.attach ? ` · ${icon('clip', 'mini')} anexo` : ''}</div>
+        ${m.ask ? `<div class="brief-ask">${txt(m.ask, 320)}</div>` : ''}</div>
+      ${ok(m.url) ? `<a class="btn ghost sm" href="${esc(m.url)}" target="_blank" rel="noopener" data-action="noop">Abrir</a>` : ''}
+    </div>`).join('');
+  const watch = (Array.isArray(B.watch) ? B.watch : []).slice(0, 6).map(w => `<li>${txt(w, 220)}</li>`).join('');
+  return card({
+    cls: 'brief',
+    title: today ? 'Resumo do dia' : `Resumo de ${longDate(when)}`,
+    sub: today ? `${longDate(when)} · gerado às ${B.generatedAt ? clockHM(B.generatedAt) : '5h'}` : 'O de hoje chega às 5h',
+    right: today ? '' : '<span class="badge light">desatualizado</span>',
+    body: `${B.headline ? `<div class="brief-head">${txt(B.headline, 160)}</div>` : ''}
+      ${B.summary ? `<p class="brief-sum">${txt(B.summary, 600)}</p>` : ''}
+      ${prios ? `<div class="brief-sec">O que fazer hoje</div>${prios}` : ''}
+      ${mails ? `<div class="brief-sec">Demandas do e-mail</div>${mails}` : ''}
+      ${watch ? `<div class="brief-sec">Atenção</div><ul class="brief-watch">${watch}</ul>` : ''}` });
+}
+
 Views.visao = () => {
   const S = Store.state, s = S.settings, ui = UI.state, today = D.today(), mon = D.monday(today);
   const st = Calc.status(), ok = st.filter(x => x.ok).length, total = st.length;
@@ -1269,6 +1328,7 @@ Views.visao = () => {
 
   return `
   ${pageHeader({ eyebrow: 'Visão geral', title: s.name ? `Olá, ${s.name}` : 'Painel da Vida', desc: 'Cinco pilares, um plano de ação e a evolução de cada um. Toque em um pilar para abrir os detalhes.', right: `<span class="date-pill">${icon('calendar')} ${esc(rangeLabel(mon))}</span>` })}
+  ${briefCard()}
   <div class="stats">
     ${statCard({ label: 'Consistência da semana', value: ok, unit: `/ ${total} pilares em dia`, foot: footText(`${longDate(today)} · semana em andamento`), dark: true })}
     ${statCard({ label: 'Saldo do mês', value: brl(saldo), foot: Calc.income(mk) ? footText(`${Math.round((saldo / Calc.income(mk)) * 100)}% da receita`) : footText('informe a receita no Financeiro') })}
@@ -2008,7 +2068,10 @@ Views.config = () => {
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn ghost" data-action="loadSample">Carregar dados de exemplo</button>
         <button class="btn danger" data-action="clearAll">Apagar tudo e começar do zero</button>
-      </div>` })}`;
+      </div>` })}
+  ${card({ title: 'Resumo diário', sub: 'Todo dia, antes das 5h da manhã',
+    body: `<p class="desc">O Claude confere o seu Gmail (e-mails da Gerar na caixa de entrada) e o que está no painel, e deixa na Visão geral o que você precisa fazer no dia. Não envia nem altera nada no seu e-mail.</p>
+      <div class="row-meta">${Store.mode !== 'cloud' ? 'Disponível só abrindo o painel pelo link no Claude.' : Store.brief && Store.brief.generatedAt ? `Último resumo: ${new Date(Store.brief.generatedAt).toLocaleDateString('pt-BR')} às ${clockHM(Store.brief.generatedAt)}` : 'Nenhum resumo gerado ainda.'}</div>` })}`;
 };
 
 /* ---------------- Render ---------------- */

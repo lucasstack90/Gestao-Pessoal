@@ -21,7 +21,7 @@ mas aí os dados ficam salvos só naquele navegador.
 | Pilar | O que acompanha |
 |---|---|
 | Tarefas | Tarefas pessoais do dia para marcar (o trabalho fica separado, no módulo Trabalho): rotina fixa (todo dia, dias úteis ou dias escolhidos) e tarefas avulsas de um dia; sequência de dias com tudo feito e % dos últimos 7 dias |
-| Visão geral | Tarefas de hoje, pilares em dia, saldo do mês, páginas e treinos da semana, gráfico de evolução, calendário e tabela de status |
+| Visão geral | Resumo do dia preparado às 5h (demandas do e-mail + o que está no painel), tarefas de hoje, pilares em dia, saldo do mês, páginas e treinos da semana, gráfico de evolução, calendário e tabela de status |
 | 01 · Financeiro | Fatura do mês (o arquivo fica guardado), receita x despesas, gastos por categoria com limite e aviso a partir de 80%, gastos fixos e parcelas com o total comprometido nos próximos 6 meses, metas com aportes em R$ |
 | 02 · Estudos | Cronômetro de foco (25, 45, 60 min ou livre) com registro de tempo por livro e meta diária, anotações e frases de cada livro, lista "quero ler", meta de páginas por dia, sequência, últimos 14 dias e livros com previsão de término |
 | 03 · Emocional | Check-in semanal, nota de 1 a 5 por pilar, insights e 3 perguntas fixas |
@@ -67,3 +67,16 @@ livro escolhido. Menos de 1 minuto não é registrado. Também dá para registra
 maior valor entre o que você lançou e o que já está comprometido (fixos + parcelas), para não contar duas vezes
 uma parcela que já veio na fatura. Aviso (faixa e número no menu) a partir de 80% do limite e alerta vermelho acima de 100%.
 Parcelas: a parcela de um mês é `(mês − início)` dentro do total; o gráfico mostra os próximos 6 meses.
+
+## Resumo diário das 5h
+
+Uma tarefa agendada no Claude ("Resumo diário do Painel da Vida") roda todo dia às 4h50 (horário de Brasília, para estar
+pronto às 5h). Ela lê, com a sua conta, a área do painel no banco (`data/users/me`) e, quando o conector do Gmail
+está disponível na execução, os e-mails de trabalho da caixa de entrada (últimos 3 dias, sem as conversas que você já respondeu).
+Depois grava o documento `brief` e manda um push no celular. O painel mostra o cartão **Resumo do dia** no topo da Visão geral.
+
+- A tarefa só escreve no documento `brief`. Nunca envia, apaga, arquiva nem marca e-mails.
+- O painel ignora o `brief` na sincronização (só os documentos que ele conhece são gravados ou apagados).
+- Formato do `brief`: `v`, `date` (AAAA-MM-DD), `generatedAt` (ms), `headline`, `summary`,
+  `priorities[{title, detail, source, go}]`, `emails[{from, subject, ask, attach, url}]`, `watch[]`.
+- Texto vindo de e-mail é exibido como texto puro e só links do Gmail são aceitos.
