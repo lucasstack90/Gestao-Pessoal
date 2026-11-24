@@ -22,15 +22,15 @@ mas aí os dados ficam salvos só naquele navegador.
 |---|---|
 | Tarefas | Tarefas pessoais do dia para marcar (o trabalho fica separado, no módulo Trabalho): rotina fixa (todo dia, dias úteis ou dias escolhidos) e tarefas avulsas de um dia; sequência de dias com tudo feito e % dos últimos 7 dias |
 | Visão geral | Tarefas de hoje, pilares em dia, saldo do mês, páginas e treinos da semana, gráfico de evolução, calendário e tabela de status |
-| 01 · Financeiro | Fatura do mês (o arquivo fica guardado), receita x despesas, gastos por categoria, metas com aportes em R$ |
-| 02 · Estudos | Meta de páginas por dia, sequência, últimos 14 dias, livros com previsão de término |
+| 01 · Financeiro | Fatura do mês (o arquivo fica guardado), receita x despesas, gastos por categoria com limite e aviso a partir de 80%, gastos fixos e parcelas com o total comprometido nos próximos 6 meses, metas com aportes em R$ |
+| 02 · Estudos | Cronômetro de foco (25, 45, 60 min ou livre) com registro de tempo por livro e meta diária, anotações e frases de cada livro, lista "quero ler", meta de páginas por dia, sequência, últimos 14 dias e livros com previsão de término |
 | 03 · Emocional | Check-in semanal, nota de 1 a 5 por pilar, insights e 3 perguntas fixas |
 | 04 · Saúde | Treinos da semana, últimas 6 semanas, horas de sono e energia, hábito diário, recordes pessoais |
 | 05 · Trabalho | Demandas do trabalho (e-mails de @gerar.org.br lidos do Gmail a cada 5 minutos + demandas anotadas à mão, com status nova, em andamento e concluída), expediente de hoje (auxiliar administrativo na Gerar, 13:30 às 17:30) com tempo restante, ponto da semana (trabalhei, folga, falta, entrada e saída), horas na semana, rotina do trabalho, registro semanal (entregas, aprendizados, onde preciso de ajuda) e objetivos profissionais |
 
 ### Quando um pilar está "em dia"
 
-- **Financeiro**: mês com lançamentos ou fatura enviada
+- **Financeiro**: mês com lançamentos ou fatura enviada e nenhuma categoria acima do limite
 - **Estudos**: meta de páginas cumprida ontem ou hoje
 - **Emocional**: check-in da semana feito
 - **Saúde**: treinos no ritmo da meta semanal até hoje
@@ -55,3 +55,15 @@ Busca usada: `in:inbox from:<domínio> after:<início do acompanhamento>` (domí
 
 O painel confere a cada 5 minutos enquanto está aberto e avisa com um número no menu, uma faixa no topo e
 o número no título da aba. Nada é alterado no Gmail. As demandas ficam no documento `demands` do banco.
+
+## Foco, anotações e orçamento
+
+**Foco nos estudos.** O cronômetro conta na página; o horário de início fica guardado no navegador, então um
+recarregamento não perde o foco em andamento. Ao terminar (ou parar), o tempo vira um registro do dia, ligado ao
+livro escolhido. Menos de 1 minuto não é registrado. Também dá para registrar minutos à mão. Registros ficam em
+`days[data].focus`, e as anotações e frases em documentos `n-<livro>` do banco (um por livro).
+
+**Orçamento por categoria.** O limite fica em `finance.budgets`. Para cada categoria, o gasto considerado é o
+maior valor entre o que você lançou e o que já está comprometido (fixos + parcelas), para não contar duas vezes
+uma parcela que já veio na fatura. Aviso (faixa e número no menu) a partir de 80% do limite e alerta vermelho acima de 100%.
+Parcelas: a parcela de um mês é `(mês − início)` dentro do total; o gráfico mostra os próximos 6 meses.

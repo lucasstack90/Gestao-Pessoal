@@ -564,6 +564,52 @@ a.link { color: var(--accent-ink); }
 .banner { background: var(--accent-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent-soft); }
 .banner .btn { background: var(--accent); color: var(--on-accent); }
 
+/* ---------- Foco, anotações e orçamento ---------- */
+:root { --warn: #c27700; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --warn: #ffb02e; } }
+:root[data-theme="dark"] { --warn: #ffb02e; }
+
+.focus { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+.focus-ring { --p: 0; width: 168px; height: 168px; border-radius: 50%; flex: none; display: grid; place-items: center; background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--track) 0); }
+.focus-ring.live { box-shadow: 0 0 34px var(--accent-glow); }
+.focus-ring::before { content: ""; grid-area: 1 / 1; width: 140px; height: 140px; border-radius: 50%; background: var(--card); }
+.focus-ring span { grid-area: 1 / 1; z-index: 1; font-size: 34px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.focus-side { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.focus-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.big { padding: 12px 20px; font-size: 14.5px; }
+.pill:disabled { opacity: .5; cursor: default; }
+.focus-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent); color: var(--on-accent); border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; box-shadow: 0 4px 14px var(--accent-glow); }
+.focus-chip .ic { width: 14px; height: 14px; }
+
+.note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.note:last-child { border-bottom: 0; }
+.note .grow { flex: 1; min-width: 0; }
+.note-text { overflow-wrap: anywhere; line-height: 1.55; }
+.note.frase .note-text { font-style: italic; border-left: 3px solid var(--accent); padding-left: 12px; }
+.note-form { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 8px; }
+.note-form textarea, .note-form .btn { grid-column: 1 / -1; }
+.note-form .btn { justify-self: start; }
+
+.cat { padding: 10px 0; }
+.cat + .cat { border-top: 1px solid var(--line); }
+.cat .cat-row { padding: 0; }
+.cat-bar { position: relative; }
+.limit-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .45; }
+.cat-sub { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; font-size: 12px; }
+.cat-state { color: var(--ink-3); }
+.cat-state.warn { color: var(--warn); font-weight: 600; }
+.cat-state.over { color: var(--down); font-weight: 600; }
+.limit { display: flex; align-items: center; gap: 6px; color: var(--ink-3); }
+.limit .input { width: 96px; }
+
+.alert.warn { box-shadow: inset 0 0 0 1.5px var(--warn); }
+.alert.warn .ic { color: var(--warn); }
+.nav-badge.warn { background: var(--warn); color: #ffffff; }
+.fx-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; align-items: center; }
+.fx-form input[name="name"] { grid-column: 1 / -1; }
+.fx-form .btn { grid-column: 1 / -1; justify-content: center; }
+@media (max-width: 560px) { .focus-ring { width: 150px; height: 150px; } .focus-ring::before { width: 124px; height: 124px; } .focus-ring span { font-size: 30px; } .focus { justify-content: center; } }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -609,16 +655,18 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 function defaultState() {
   return {
     sample: false,
-    settings: { name: '', trainGoal: 5, sleepGoal: 8, pagesGoal: 15, habitName: 'Caminhada de 20 min',
+    settings: { name: '', trainGoal: 5, sleepGoal: 8, pagesGoal: 15, focusGoal: 60, habitName: 'Caminhada de 20 min',
       work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 2, 3, 4], gmailOn: false, gmailDomain: 'gerar.org.br', gmailSince: 0, gmailV: 0 } },
     days: {},   // 'AAAA-MM-DD' -> { trained, sleep, energy, pages, habit }
     weeks: {},  // segunda 'AAAA-MM-DD' -> { feeling, good, insights, q1, q2, q3, ratings }
     records: [],
     books: [],
+    wishlist: [],  // livros que quero ler: { id, title, author, total }
+    notes: [],     // anotações e frases: { id, book, kind: 'nota'|'frase', text, page, at }
     demands: [],   // demandas do trabalho: { id, src: 'gmail'|'manual', thread, from, subject, date, status, seen, attach }
     workGoals: [], // objetivos profissionais: { id, name, progress, updatedAt }
     tasks: [],  // rotina fixa: { id, name, pillar, days: [0-6, seg=0], from: 'AAAA-MM-DD' }
-    finance: { categories: ['Moradia', 'Alimentação', 'Transporte', 'Lazer', 'Assinaturas e cursos'], months: {}, goals: [] },
+    finance: { categories: ['Moradia', 'Alimentação', 'Transporte', 'Lazer', 'Assinaturas e cursos'], months: {}, goals: [], budgets: {}, fixed: [], installments: [] },
   };
 }
 
@@ -707,6 +755,40 @@ function sampleState() {
     { id: uid(), name: 'Concluir curso de Excel intermediário', progress: 80, updatedAt: Date.now() - 4 * 864e5 },
   ];
   s.tasks.push({ id: uid(), name: 'Conferir e-mails e agenda do setor', pillar: 'trabalho', days: [0, 1, 2, 3, 4], from });
+  const curCats = s.finance.months[cur].categories, m0 = D.addMonths(cur, -4);
+  s.finance.categories.push('Compras');
+  s.finance.budgets = {
+    'Alimentação': Math.round(curCats['Alimentação'] * 1.3 / 10) * 10,
+    'Transporte': Math.round(curCats['Transporte'] * 1.25 / 10) * 10,
+    'Lazer': Math.round(curCats['Lazer'] / 0.88 / 10) * 10,
+    'Assinaturas e cursos': Math.round(curCats['Assinaturas e cursos'] * 0.95 / 10) * 10,
+    'Compras': 500,
+  };
+  s.finance.fixed = [
+    { id: uid(), name: 'Aluguel', category: 'Moradia', amount: 1800, from: m0 },
+    { id: uid(), name: 'Internet', category: 'Assinaturas e cursos', amount: 110, from: m0 },
+    { id: uid(), name: 'Streaming', category: 'Assinaturas e cursos', amount: 45, from: m0 },
+  ];
+  s.finance.installments = [
+    { id: uid(), name: 'Notebook', category: 'Compras', amount: 280, total: 10, start: D.addMonths(cur, -3) },
+    { id: uid(), name: 'Curso de inglês', category: 'Assinaturas e cursos', amount: 95, total: 6, start: D.addMonths(cur, -1) },
+    { id: uid(), name: 'Hotel da viagem', category: 'Lazer', amount: 320, total: 4, start: D.addMonths(cur, 1) },
+  ];
+  for (let i = 13; i >= 0; i--) {
+    const k = D.key(D.add(today, -i)), day = s.days[k]; if (!day) continue;
+    const n = i === 0 ? 1 : (r() < 0.75 ? 1 + Math.floor(r() * 2) : 0);
+    day.focus = [];
+    for (let j = 0; j < n; j++) day.focus.push({ id: uid(), min: i === 0 ? 25 : [25, 25, 45, 50][Math.floor(r() * 4)], book: s.books[Math.floor(r() * 2)].id, at: D.parse(k).getTime() + (8 + j * 2) * 3600e3 });
+  }
+  s.notes = [
+    { id: uid(), book: s.books[0].id, kind: 'frase', text: 'Menos, porém melhor.', page: 12, at: Date.now() - 5 * 864e5 },
+    { id: uid(), book: s.books[0].id, kind: 'nota', text: 'Antes de aceitar um compromisso, perguntar: isso é essencial?', page: 87, at: Date.now() - 2 * 864e5 },
+    { id: uid(), book: s.books[1].id, kind: 'nota', text: 'Hábito = gatilho, rotina e recompensa. Trocar a rotina e manter o gatilho.', page: 54, at: Date.now() - 864e5 },
+  ];
+  s.wishlist = [
+    { id: uid(), title: 'Hábitos Atômicos', author: 'James Clear', total: 320 },
+    { id: uid(), title: 'A Coragem de Ser Imperfeito', author: 'Brené Brown', total: 0 },
+  ];
   s.finance.goals = [
     { id: uid(), name: 'Reserva de emergência', target: 15000, current: 9300 },
     { id: uid(), name: 'Viagem (Portugal, 2027)', target: 12000, current: 4560 },
@@ -721,10 +803,12 @@ function normalize(raw) {
   s.finance = Object.assign(defaultState().finance, s.finance || {});
   ['days', 'weeks'].forEach(k => { if (!s[k] || typeof s[k] !== 'object') s[k] = {}; });
   s.settings.work = Object.assign(defaultState().settings.work, (raw && raw.settings && raw.settings.work) || {});
-  ['records', 'books', 'tasks', 'workGoals', 'demands'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
+  ['records', 'books', 'tasks', 'workGoals', 'demands', 'wishlist', 'notes'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   if (!s.finance.months || typeof s.finance.months !== 'object') s.finance.months = {};
   if (!Array.isArray(s.finance.goals)) s.finance.goals = [];
   if (!Array.isArray(s.finance.categories)) s.finance.categories = [];
+  if (!s.finance.budgets || typeof s.finance.budgets !== 'object' || Array.isArray(s.finance.budgets)) s.finance.budgets = {};
+  ['fixed', 'installments'].forEach(k => { if (!Array.isArray(s.finance[k])) s.finance[k] = []; });
   return s;
 }
 
@@ -732,21 +816,24 @@ function normalize(raw) {
 const clone = o => JSON.parse(JSON.stringify(o));
 function toDocs(s) {
   const docs = {
-    config: { v: 2, sample: !!s.sample, settings: s.settings, records: s.records, books: s.books, tasks: s.tasks, workGoals: s.workGoals, categories: s.finance.categories, goals: s.finance.goals },
+    config: { v: 2, sample: !!s.sample, settings: s.settings, records: s.records, books: s.books, tasks: s.tasks, workGoals: s.workGoals, wishlist: s.wishlist, budgets: s.finance.budgets, fixed: s.finance.fixed, installments: s.finance.installments, categories: s.finance.categories, goals: s.finance.goals },
   };
   Object.entries(s.days).forEach(([k, v]) => { const id = 'd-' + k.slice(0, 7); (docs[id] = docs[id] || { days: {} }).days[k] = v; });
   Object.entries(s.weeks).forEach(([k, v]) => { const id = 'w-' + k.slice(0, 4); (docs[id] = docs[id] || { weeks: {} }).weeks[k] = v; });
   Object.entries(s.finance.months).forEach(([k, v]) => { docs['f-' + k] = v; });
   if (s.demands.length) docs.demands = { items: s.demands.slice(-300) };
+  const nb = {}; s.notes.forEach(n => { (nb[n.book] = nb[n.book] || []).push(n); });
+  Object.entries(nb).forEach(([b, items]) => { docs['n-' + b] = { items }; });
   return docs;
 }
 function fromDocs(docs) {
   const c = docs.config || {};
-  const s = normalize({ demands: (docs.demands || {}).items, sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, workGoals: c.workGoals, finance: { categories: c.categories, goals: c.goals, months: {} } });
+  const s = normalize({ demands: (docs.demands || {}).items, sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, workGoals: c.workGoals, wishlist: c.wishlist, finance: { categories: c.categories, goals: c.goals, months: {}, budgets: c.budgets, fixed: c.fixed, installments: c.installments } });
   Object.entries(docs).forEach(([id, d]) => {
     if (id.startsWith('d-')) Object.assign(s.days, d.days || {});
     else if (id.startsWith('w-')) Object.assign(s.weeks, d.weeks || {});
     else if (id.startsWith('f-')) s.finance.months[id.slice(2)] = d;
+    else if (id.startsWith('n-')) (d.items || []).forEach(n => s.notes.push(n));
   });
   return clone(s);
 }
@@ -818,7 +905,7 @@ async function boot() {
     try { Store.state = raw ? normalize(JSON.parse(raw)) : defaultState(); } catch (e) { Store.state = defaultState(); }
     Store.fresh = !raw;
     render();
-    Gmail.init();
+    Gmail.init(); Focus.init();
     return;
   }
 
@@ -835,7 +922,7 @@ async function boot() {
       Store.fresh = snap.empty;
       Store.state = snap.empty ? defaultState() : fromDocs(docs);
       render();
-      Gmail.init();
+      Gmail.init(); Focus.init();
       return;
     }
     if (Sync.saving()) return;
@@ -890,6 +977,37 @@ const Calc = {
   expenses(mk) { const m = Store.state.finance.months[mk]; return m && m.categories ? Object.values(m.categories).reduce((a, b) => a + (+b || 0), 0) : 0; },
   goalPct(g) { return g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0; },
   mindAvg(wk) { const w = Store.state.weeks[wk]; if (!w || !w.ratings) return 0; const v = Object.values(w.ratings).filter(x => x > 0); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length) * 2 : 0; },
+  /* Foco nos estudos */
+  focusList(k) { const f = (Store.state.days[k] || {}).focus; return Array.isArray(f) ? f : []; },
+  focusMin(k) { return Calc.focusList(k).reduce((a, x) => a + (x.min || 0), 0); },
+  focusSum(dates) { return dates.reduce((a, d) => a + Calc.focusMin(D.key(d)), 0); },
+  bookFocus(id) { let t = 0; Object.values(Store.state.days).forEach(d => (d.focus || []).forEach(x => { if (x.book === id) t += x.min || 0; })); return t; },
+  focusStreak() { const g = Store.state.settings.focusGoal || 1; return Calc.streak(v => (v.focus || []).reduce((a, x) => a + (x.min || 0), 0) >= g); },
+
+  /* Orçamento, gastos fixos e parcelas */
+  monthsBetween(a, b) { const [ya, ma] = a.split('-').map(Number), [yb, mb] = b.split('-').map(Number); return (yb - ya) * 12 + (mb - ma); },
+  instState(i, mk) {
+    const idx = Calc.monthsBetween(i.start, mk);
+    return { idx, active: idx >= 0 && idx < i.total, done: idx >= i.total, n: clamp(idx + 1, 1, i.total), left: Math.max(0, i.total - Math.max(0, idx)) };
+  },
+  committed(mk) {
+    const F = Store.state.finance, byCat = {};
+    let fixed = 0, inst = 0;
+    F.fixed.forEach(f => { if (f.from && f.from > mk) return; const v = +f.amount || 0; fixed += v; byCat[f.category] = (byCat[f.category] || 0) + v; });
+    F.installments.forEach(i => { if (Calc.instState(i, mk).active) { const v = +i.amount || 0; inst += v; byCat[i.category] = (byCat[i.category] || 0) + v; } });
+    return { fixed, inst, total: fixed + inst, byCat };
+  },
+  /* O gasto de uma categoria é o maior entre o que você lançou e o que já está comprometido, para não contar duas vezes */
+  budgetRows(mk) {
+    const F = Store.state.finance, m = F.months[mk] || {}, cm = Calc.committed(mk);
+    return F.categories.map(name => {
+      const spent = +((m.categories || {})[name]) || 0, comm = cm.byCat[name] || 0, eff = Math.max(spent, comm), limit = +F.budgets[name] || 0;
+      const pct = limit > 0 ? (eff / limit) * 100 : 0;
+      return { name, spent, comm, eff, limit, pct, state: !limit ? 'none' : pct > 100 ? 'over' : pct >= 80 ? 'warn' : 'ok' };
+    });
+  },
+  budgetAlerts() { return Calc.budgetRows(D.monthKey(D.today())).filter(r => r.state === 'warn' || r.state === 'over'); },
+
   /* Trabalho */
   toMin(t) { const [h, m] = String(t || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); },
   isWorkday(d) { return (Store.state.settings.work.days || []).includes((d.getDay() + 6) % 7); },
@@ -935,6 +1053,7 @@ const Calc = {
     const mk = D.monthKey(today), pmk = D.addMonths(mk, -1);
     const fm = S.finance.months[mk] || {};
     const finOk = !!fm.invoice || !!(S.finance.months[pmk] || {}).invoice || Calc.income(mk) > 0 || Calc.expenses(mk) > 0;
+    const overBudget = Calc.budgetRows(mk).some(r => r.state === 'over');
     const sm = MONTHS_SHORT[today.getMonth()].toLowerCase();
     const workdays = Calc.weekDays(mon).filter(Calc.isWorkday);
     const before = workdays.filter(d => d < today).map(D.key);
@@ -942,7 +1061,7 @@ const Calc = {
     const workOk = before.every(marked);
     const worked = workdays.filter(d => d <= today && (((S.days[D.key(d)] || {}).work || {}).status === 'ok')).length;
     return [
-      { id: 'financeiro', ok: finOk, indicator: fm.invoice ? `fatura de ${sm} enviada` : (finOk ? 'mês em lançamento' : `fatura de ${sm} pendente`), goal: 'fatura e gastos do mês', rule: 'mês com lançamentos ou fatura enviada' },
+      { id: 'financeiro', ok: finOk && !overBudget, indicator: overBudget ? 'limite de categoria estourado' : fm.invoice ? `fatura de ${sm} enviada` : (finOk ? 'mês em lançamento' : `fatura de ${sm} pendente`), goal: 'fatura e gastos do mês', rule: 'mês com lançamentos ou fatura enviada e nenhuma categoria acima do limite' },
       { id: 'estudos', ok: rs > 0, indicator: `${rs} ${rs === 1 ? 'dia seguido' : 'dias seguidos'} lendo`, goal: `${s.pagesGoal} páginas por dia`, rule: 'meta de páginas cumprida ontem ou hoje' },
       { id: 'emocional', ok: mind, indicator: mind ? `nota da semana: ${fmt(Calc.mindAvg(wk))}/10` : 'check-in pendente', goal: 'check-in semanal', rule: 'check-in da semana feito' },
       { id: 'trabalho', ok: workOk && !S.demands.some(d => d.status === 'nova' && Date.now() - d.date > 864e5), indicator: `${worked}/${workdays.length} dias de expediente · ${S.demands.filter(d => d.status !== 'concluida').length} demandas abertas`, goal: `${s.work.start} às ${s.work.end}`, rule: 'ponto marcado até ontem e nenhuma demanda nova parada há mais de 1 dia' },
@@ -952,7 +1071,7 @@ const Calc = {
 };
 
 /* ---------------- Componentes ---------------- */
-const UI = { highlight: new Set(), state: { demFilter: 'abertas', taskDay: D.todayKey(), workOffset: 0, workDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
+const UI = { highlight: new Set(), state: { focusTarget: 25, focusBook: '', noteBook: '', demFilter: 'abertas', taskDay: D.todayKey(), workOffset: 0, workDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
 
 const ICONS = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -977,6 +1096,10 @@ const ICONS = {
   mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   clip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
+  play: '<polygon points="6 4 20 12 6 20 6 4"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+  alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   list: '<rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 9"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1199,13 +1322,19 @@ Views.financeiro = () => {
     : `<label class="dropzone" for="invoice-${mk}">${icon('upload')} ${UI.uploading ? 'Enviando a fatura…' : 'Toque para selecionar o PDF ou print da fatura'}
         <input id="invoice-${mk}" type="file" accept="application/pdf,image/*" data-change="invoice" data-month="${mk}"></label>`;
 
-  const cats = S.finance.categories.map(name => ({ name, value: +((m.categories || {})[name]) || 0 })).sort((a, b) => b.value - a.value);
-  const maxCat = Math.max(1, ...cats.map(c => c.value));
+  const rows = Calc.budgetRows(mk).sort((a, b) => b.eff - a.eff), cm = Calc.committed(mk);
+  const maxCat = Math.max(1, ...rows.map(c => c.eff));
   const shades = ['var(--accent)', 'var(--accent-2)', 'var(--bar-a)', 'var(--gray)', 'var(--goal)', 'var(--goal)'];
-  const catRows = cats.map((c, i) => `<div class="cat-row">
-      <span class="small" style="color:var(--ink-2);font-weight:500">${esc(c.name)}</span>
-      <div class="cat-bar"><span style="width:${(c.value / maxCat) * 100}%;background:${shades[Math.min(i, shades.length - 1)]}"></span></div>
-      <input class="input sm num" type="number" min="0" step="10" value="${c.value || ''}" placeholder="R$ 0" data-change="category" data-month="${mk}" data-name="${esc(c.name)}" data-k="cat-${esc(c.name)}" aria-label="Gasto com ${esc(c.name)}"></div>`).join('');
+  const stateTxt = r => r.state === 'over' ? `Passou do limite em ${brl(r.eff - r.limit)}` : r.state === 'warn' ? `${Math.round(r.pct)}% do limite: perto de estourar` : r.state === 'ok' ? `${Math.round(r.pct)}% do limite` : 'sem limite definido';
+  const catRows = rows.map((c, i) => `<div class="cat ${c.state}">
+      <div class="cat-row">
+        <span class="small" style="color:var(--ink-2);font-weight:500">${esc(c.name)}</span>
+        <div class="cat-bar"><span style="width:${c.limit ? clamp(c.pct, 0, 100) : (c.eff / maxCat) * 100}%;background:${c.state === 'over' ? 'var(--down)' : c.state === 'warn' ? 'var(--warn)' : shades[Math.min(i, shades.length - 1)]}"></span></div>
+        <input class="input sm num" type="number" min="0" step="10" value="${c.spent || ''}" placeholder="R$ 0" data-change="category" data-month="${mk}" data-name="${esc(c.name)}" data-k="cat-${esc(c.name)}" aria-label="Gasto com ${esc(c.name)}">
+      </div>
+      <div class="cat-sub"><span class="cat-state ${c.state}">${stateTxt(c)}${c.comm ? ` · fixos e parcelas ${brl(c.comm)}` : ''}</span>
+        <label class="limit"><span>Limite</span><input class="input sm num" type="number" min="0" step="10" value="${c.limit || ''}" placeholder="R$ —" data-change="budget" data-name="${esc(c.name)}" data-k="bud-${esc(c.name)}" aria-label="Limite de ${esc(c.name)}"></label></div>
+    </div>`).join('');
 
   const goalRows = goals.length ? goals.map(g => { const pct = Calc.goalPct(g); return `<div class="row" style="align-items:flex-start"><div class="grow">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><div class="row-title">${esc(g.name)}</div><span class="pct">${pct}%</span></div>
@@ -1224,7 +1353,7 @@ Views.financeiro = () => {
     ${statCard({ label: 'Receita', value: brl(inc), foot: trend(inc, Calc.income(pmk), { suffix: `vs ${shortName(pmk).toLowerCase()}` }), dark: true })}
     ${statCard({ label: 'Despesas', value: brl(exp), foot: trend(exp, Calc.expenses(pmk), { invert: true, suffix: `vs ${shortName(pmk).toLowerCase()}` }) })}
     ${statCard({ label: 'Saldo do mês', value: brl(saldo), foot: footText(inc ? `${Math.round((saldo / inc) * 100)}% da receita` : 'informe a receita') })}
-    ${statCard({ label: 'Metas de longo prazo', value: `${goalsAvg}%`, foot: footText(`média de ${goals.length} ${goals.length === 1 ? 'meta' : 'metas'}`) })}
+    ${statCard({ label: 'Comprometido no mês', value: brl(cm.total), foot: footText(`${brl(cm.fixed)} fixos · ${brl(cm.inst)} parcelas`) })}
   </div>
   <div class="grid g-2">
     ${card({ title: 'Fatura do mês', sub: `Envie a fatura de ${MONTHS[Number(mk.split('-')[1]) - 1]}`,
@@ -1238,17 +1367,110 @@ Views.financeiro = () => {
         <div class="row-meta">${inc ? `${Math.round((exp / inc) * 100)}% da receita já foi gasto` : 'Informe a receita para ver o saldo'}</div>` })}
   </div>
   <div class="grid g-2">
-    ${card({ title: 'Gastos por categoria', sub: `${monthLabel(mk)} · ordenado do maior para o menor`, body: cats.length ? catRows : '<div class="empty">Cadastre categorias em Configurações.</div>' })}
-    ${card({ title: 'Metas de longo prazo', sub: 'Registre cada aporte para ver a meta crescer',
+    ${card({ title: 'Gastos por categoria', sub: `${monthLabel(mk)} · defina um limite e acompanhe até onde já foi`, body: rows.length ? catRows + '<div class="tip">Cada barra mostra quanto do limite da categoria já foi usado. Vale o maior valor entre o que você lançou e o que já está comprometido em fixos e parcelas, assim nada é contado duas vezes. O painel avisa a partir de 80% do limite.</div>' : '<div class="empty">Cadastre categorias em Configurações.</div>' })}
+    ${card({ title: 'Metas de longo prazo', sub: `Registre cada aporte · média de ${goalsAvg}%`,
       body: `${goalRows}<form class="inline-form card-foot" data-submit="addGoal">
           <input class="input" name="name" placeholder="Nova meta (ex: reserva de emergência)" required maxlength="80" aria-label="Nome da meta">
           <input class="input num" name="target" type="number" min="1" placeholder="Valor R$" style="max-width:120px" required aria-label="Valor da meta">
           <button class="btn" type="submit" aria-label="Adicionar meta">${icon('plus')}</button></form>` })}
-  </div>`;
+  </div>
+  ${(() => {
+    const catOpts = S.finance.categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    const nextMonths = [0, 1, 2, 3, 4, 5].map(i => { const k = D.addMonths(curMk, i); return { label: shortName(k), value: Math.round(Calc.committed(k).total), hl: i === 0 }; });
+    const totalNext = nextMonths.reduce((a, x) => a + x.value, 0), top = nextMonths.reduce((a, x) => (x.value > a.value ? x : a), nextMonths[0]);
+    const fixedRows = S.finance.fixed.map(f => `<div class="row"><div class="grow"><div class="row-title" style="font-weight:500">${esc(f.name)}</div><div class="row-sub">${esc(f.category || 'Sem categoria')} · todo mês</div></div><b class="mono">${brl(f.amount)}</b>${removeBtn(`data-list="fixed" data-id="${f.id}"`)}</div>`).join('');
+    const insts = S.finance.installments.map(i => ({ i, st: Calc.instState(i, curMk) })).sort((a, b) => Number(a.st.done) - Number(b.st.done));
+    const instRows = insts.map(({ i, st }) => `<div class="row routine-row"><div class="grow"><div style="display:flex;justify-content:space-between;gap:8px"><span class="row-title" style="font-weight:500">${esc(i.name)}</span><b class="mono">${brl(i.amount)}</b></div>
+        <div class="row-sub">${esc(i.category || 'Sem categoria')} · ${st.done ? 'quitada' : st.idx < 0 ? `começa em ${shortName(i.start)}/${i.start.slice(0, 4)}` : `parcela ${st.n} de ${i.total}`}${st.done ? '' : ` · faltam ${st.left} (${brl(st.left * i.amount)})`}</div>
+        <div style="margin-top:8px">${progress(st.done ? 100 : st.idx < 0 ? 0 : ((st.idx + 1) / i.total) * 100)}</div></div>${removeBtn(`data-list="installments" data-id="${i.id}"`)}</div>`).join('');
+    return `<div class="grid g-2">
+      ${card({ title: 'Comprometido nos próximos meses', sub: 'Gastos fixos + parcelas · 6 meses a partir de agora',
+        body: `${barChart({ items: nextMonths, height: 190, fmtV: v => brl(v) })}
+          <div class="card-foot"><div class="kv"><span>Total nos 6 meses</span><b>${brl(totalNext)}</b></div>
+          <div class="kv" style="margin:0"><span>Mês mais pesado</span><b>${top.label} · ${brl(top.value)}</b></div></div>` })}
+      ${card({ title: 'Gastos fixos e parcelas', sub: 'O que se repete todo mês e o que ainda vai pagar',
+        body: `<div class="field-label" style="margin-bottom:6px">Fixos mensais</div>
+          ${fixedRows || '<div class="empty" style="padding:8px 0">Nenhum gasto fixo. Ex: aluguel, internet.</div>'}
+          <form class="fx-form" data-submit="addFixed" style="margin-top:10px">
+            <input class="input" name="name" placeholder="Novo fixo (ex: internet)" required maxlength="60" aria-label="Nome do gasto fixo">
+            <select class="input" name="category" aria-label="Categoria">${catOpts}</select>
+            <input class="input num" name="amount" type="number" min="1" step="0.01" placeholder="Valor R$" required aria-label="Valor mensal">
+            <button class="btn ghost" type="submit">${icon('plus')} Adicionar fixo</button>
+          </form>
+          <div class="field-label card-foot" style="margin-bottom:6px">Parcelas</div>
+          ${instRows || '<div class="empty" style="padding:8px 0">Nenhuma parcela em andamento.</div>'}
+          <form class="fx-form" data-submit="addInstall" style="margin-top:10px">
+            <input class="input" name="name" placeholder="Nova compra parcelada" required maxlength="60" aria-label="Nome da compra">
+            <select class="input" name="category" aria-label="Categoria">${catOpts}</select>
+            <input class="input num" name="amount" type="number" min="1" step="0.01" placeholder="Valor da parcela" required aria-label="Valor da parcela">
+            <input class="input num" name="total" type="number" min="1" max="120" placeholder="Nº de parcelas" required aria-label="Número de parcelas">
+            <input class="input" name="start" type="month" value="${curMk}" aria-label="Mês da primeira parcela">
+            <button class="btn ghost" type="submit">${icon('plus')} Adicionar parcelas</button>
+          </form>` })}
+    </div>`;
+  })()}`;
+};
+
+/* ---------------- Foco nos estudos ---------------- */
+const TIMER_KEY = 'painel-vida:timer';
+const fmtClock = ms => {
+  const t = Math.max(0, Math.round(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  return (h ? `${h}:${String(m).padStart(2, '0')}` : String(m).padStart(2, '0')) + ':' + String(s).padStart(2, '0');
+};
+const hmin = m => (m >= 60 ? `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart(2, '0')}` : `${Math.round(m)} min`);
+const clockHM = ms => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
+/* O cronômetro roda na página; o início fica guardado no navegador para sobreviver a um recarregamento */
+const Focus = {
+  t: null, tick: null,
+  load() {
+    try { const raw = localStorage.getItem(TIMER_KEY); this.t = raw ? JSON.parse(raw) : null; } catch (e) { this.t = null; }
+    if (this.t && !(this.t.start > 0)) this.t = null;
+  },
+  save() { try { if (this.t) localStorage.setItem(TIMER_KEY, JSON.stringify(this.t)); else localStorage.removeItem(TIMER_KEY); } catch (e) { /* sem armazenamento */ } },
+  target() { return this.t ? (this.t.target || 0) : 0; },
+  elapsed() { return this.t ? Date.now() - this.t.start : 0; },
+  init() {
+    this.load();
+    if (this.t) {
+      if (this.target() && this.elapsed() >= this.target() * 60000) { this.finish(true); commit(); return; }
+      this.run();
+    }
+    safeRender();
+  },
+  start() {
+    if (this.t) return;
+    this.t = { start: Date.now(), target: UI.state.focusTarget || 0, book: UI.state.focusBook || '' };
+    this.save(); this.run();
+  },
+  run() { clearInterval(this.tick); this.tick = setInterval(() => this.update(), 1000); this.update(); },
+  update() {
+    if (!this.t) { clearInterval(this.tick); return; }
+    const el = this.elapsed(), tg = this.target() * 60000;
+    if (tg && el >= tg) { this.finish(true); commit(); return; }
+    const txt = fmtClock(tg ? tg - el : el);
+    ['focus-clock', 'focus-mini'].forEach(id => { const n = document.getElementById(id); if (n) n.textContent = txt; });
+    const ring = document.getElementById('focus-ring');
+    if (ring) ring.style.setProperty('--p', tg ? (el / tg) * 100 : (el % 60000) / 600);
+    document.title = `${txt} · Foco · Painel da Vida`;
+  },
+  /* auto: o tempo da meta acabou; save=false descarta sem registrar. Quem chama atualiza a tela. */
+  finish(auto, save = true) {
+    const t = this.t; if (!t) return;
+    clearInterval(this.tick); this.tick = null; this.t = null; this.save();
+    const ms = auto && t.target ? t.target * 60000 : Date.now() - t.start;
+    const min = Math.round(ms / 60000);
+    if (!save) return;
+    if (min < 1) { toast('Menos de 1 minuto: não registrei.'); return; }
+    const d = Store.day(D.key(new Date(t.start)));
+    d.focus = d.focus || [];
+    d.focus.push({ id: uid(), min, book: t.book || '', at: t.start + ms });
+    toast(auto ? `Foco concluído: +${min} min 🎉` : `Foco registrado: ${min} min`);
+  },
 };
 
 Views.estudos = () => {
-  const S = Store.state, s = S.settings, today = D.today(), tk = D.key(today);
+  const S = Store.state, s = S.settings, ui = UI.state, today = D.today(), tk = D.key(today);
   const pagesToday = Calc.dayVal(tk).pages || 0, rs = Calc.readStreak();
   const milestone = [7, 14, 30, 60, 100, 180, 365].find(m => m > rs) || rs + 1;
   const last14 = Calc.range(D.add(today, -13), 14), pages14 = Calc.pages(last14), rhythm = pages14 / 14;
@@ -1256,21 +1478,75 @@ Views.estudos = () => {
     return `<button class="day ${done ? 'done' : ''} ${k === tk ? 'today' : ''}" data-action="togglePages" data-date="${k}" aria-pressed="${done}" title="${Calc.dayVal(k).pages || 0} páginas"><span class="dot"></span>${i === 6 ? 'Hoje' : `D-${6 - i}`}</button>`; }).join('');
   const chartItems = last14.map(d => { const k = D.key(d); return { label: String(d.getDate()), value: Calc.dayVal(k).pages || 0, hl: k === tk }; });
   const active = S.books.filter(b => b.read < b.total), done = S.books.filter(b => b.read >= b.total);
+  const bookTitle = id => (S.books.find(b => b.id === id) || {}).title || '';
+
+  /* Foco */
+  const goalF = s.focusGoal || 60, focusToday = Calc.focusMin(tk);
+  const focusWeek = Calc.focusSum(Calc.upToToday(Calc.weekDays(D.monday(today)))), fStreak = Calc.focusStreak();
+  const T = Focus.t, running = !!T;
+  const tgMin = running ? (T.target || 0) : (ui.focusTarget || 0), tgMs = tgMin * 60000, el = running ? Focus.elapsed() : 0;
+  const shown = running ? (tgMs ? Math.max(0, tgMs - el) : el) : tgMs;
+  const ringP = running ? (tgMs ? (el / tgMs) * 100 : (el % 60000) / 600) : 0;
+  const chosen = running ? T.book : ui.focusBook;
+  const presets = [[25, '25 min'], [45, '45 min'], [60, '60 min'], [0, 'Livre']].map(([v, l]) =>
+    `<button class="pill ${tgMin === v ? 'active' : ''}" data-action="focusPreset" data-v="${v}" ${running ? 'disabled' : ''} aria-pressed="${tgMin === v}">${l}</button>`).join('');
+  const bookOpts = `<option value="">Sem livro</option>${active.map(b => `<option value="${b.id}" ${chosen === b.id ? 'selected' : ''}>${esc(b.title)}</option>`).join('')}`;
+  const sessions = Calc.focusList(tk).slice().sort((a, b) => a.at - b.at);
+  const sessionRows = sessions.map(x => `<div class="row"><div class="grow"><span class="row-title" style="font-weight:500">${hmin(x.min)}</span> <span class="row-sub">· ${clockHM(x.at)}${x.book ? ` · ${esc(bookTitle(x.book) || 'livro removido')}` : ''}</span></div>${removeBtn(`data-list="focus" data-date="${tk}" data-id="${x.id}"`, 'Remover registro')}</div>`).join('');
+  const focus7 = Calc.range(D.add(today, -6), 7).map(d => { const k = D.key(d); return { label: k === tk ? 'Hoje' : WEEKDAYS[(d.getDay() + 6) % 7], value: Calc.focusMin(k), hl: k === tk }; });
+
+  const perBook = S.books.map(b => ({ b, t: Calc.bookFocus(b.id) })).filter(x => x.t > 0).sort((a, b) => b.t - a.t).slice(0, 4)
+    .map(x => `<div class="kv" style="margin-bottom:6px"><span>${esc(x.b.title)}</span><b>${hmin(x.t)}</b></div>`).join('');
+
+  /* Livros, anotações e lista de desejos */
   const bookRow = b => {
-    const pct = b.total ? Math.round((b.read / b.total) * 100) : 0, left = Math.max(0, b.total - b.read), days = rhythm > 0 ? Math.ceil(left / rhythm) : null;
+    const pct = b.total ? Math.round((b.read / b.total) * 100) : 0, left = Math.max(0, b.total - b.read), days = rhythm > 0 ? Math.ceil(left / rhythm) : null, ft = Calc.bookFocus(b.id);
     return `<div class="row" style="align-items:flex-start"><div class="grow">
       <div style="display:flex;justify-content:space-between;gap:8px"><div><div class="row-title">${esc(b.title)}</div><div class="row-sub">${esc(b.author || '')}</div></div><span class="pct">${pct}%</span></div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:10px"><div style="flex:1">${progress(pct)}</div>
         <button class="btn ghost sm" data-action="bookAdd" data-id="${b.id}" data-n="10">+10 páginas</button>${removeBtn(`data-list="books" data-id="${b.id}"`)}</div>
-      <div class="row-meta">${b.read} de ${b.total} páginas · faltam ${left}${days ? ` · ~${days} ${days === 1 ? 'dia' : 'dias'} no ritmo atual` : ''}</div></div></div>`;
+      <div class="row-meta">${b.read} de ${b.total} páginas · faltam ${left}${days ? ` · ~${days} ${days === 1 ? 'dia' : 'dias'} no ritmo atual` : ''}${ft ? ` · ${hmin(ft)} de foco` : ''}</div></div></div>`;
   };
+  if (!S.books.some(b => b.id === ui.noteBook)) ui.noteBook = (active[0] || S.books[0] || {}).id || '';
+  const nb = S.books.find(b => b.id === ui.noteBook);
+  const notes = nb ? S.notes.filter(n => n.book === nb.id).slice().sort((a, b) => b.at - a.at) : [];
+  const noteRows = notes.map(n => `<div class="note ${n.kind}"><div class="grow"><div class="note-text">${n.kind === 'frase' ? `“${esc(n.text)}”` : esc(n.text)}</div>
+      <div class="row-sub" style="margin-top:6px">${n.kind === 'frase' ? 'Frase' : 'Anotação'}${n.page ? ` · página ${n.page}` : ''} · ${new Date(n.at).toLocaleDateString('pt-BR')}</div></div>${removeBtn(`data-list="notes" data-id="${n.id}"`, 'Remover')}</div>`).join('');
+  const bookPills = S.books.map(b => `<button class="pill ${b.id === ui.noteBook ? 'active' : ''}" data-action="setUi" data-key="noteBook" data-value="${b.id}">${esc(b.title)}</button>`).join('');
+  const wishRows = S.wishlist.map(w => `<div class="row routine-row"><div class="grow"><div class="row-title">${esc(w.title)}</div><div class="row-sub">${esc(w.author || 'sem autor')}</div></div>
+      <input class="input sm num" type="number" min="0" value="${w.total || ''}" placeholder="Páginas" style="width:96px" data-change="wishPages" data-id="${w.id}" data-k="wish-${w.id}" aria-label="Páginas de ${esc(w.title)}">
+      <button class="btn sm" data-action="wishStart" data-id="${w.id}">Começar a ler</button>${removeBtn(`data-list="wishlist" data-id="${w.id}"`)}</div>`).join('');
+
   return `
-  ${pillarHeader('estudos', `A meta de ${s.pagesGoal} páginas por dia e os livros que você está lendo agora.`)}
+  ${pillarHeader('estudos', `Foco, leitura de ${s.pagesGoal} páginas por dia, anotações dos livros e o que você quer ler.`)}
   <div class="stats">
-    ${statCard({ label: 'Páginas hoje', value: pagesToday, unit: `/ ${s.pagesGoal}`, foot: footText(pagesToday >= s.pagesGoal ? 'meta de hoje cumprida ✓' : `faltam ${s.pagesGoal - pagesToday} páginas`), dark: true })}
-    ${statCard({ label: 'Sequência atual', value: rs, unit: rs === 1 ? 'dia' : 'dias', foot: footText(`próximo marco: ${milestone} dias`) })}
-    ${statCard({ label: 'Últimos 14 dias', value: pages14, unit: 'páginas', foot: footText(`ritmo de ${fmt(rhythm)} páginas/dia`) })}
-    ${statCard({ label: 'Livros', value: active.length, unit: 'em andamento', foot: footText(`${done.length} ${done.length === 1 ? 'concluído' : 'concluídos'}`) })}
+    ${statCard({ label: 'Foco hoje', value: hmin(focusToday), unit: `/ ${hmin(goalF)}`, foot: footText(focusToday >= goalF ? 'meta de foco cumprida ✓' : `faltam ${hmin(goalF - focusToday)}`), dark: true })}
+    ${statCard({ label: 'Foco na semana', value: hmin(focusWeek), foot: footText(`${fStreak} ${fStreak === 1 ? 'dia' : 'dias'} seguidos na meta`) })}
+    ${statCard({ label: 'Páginas hoje', value: pagesToday, unit: `/ ${s.pagesGoal}`, foot: footText(pagesToday >= s.pagesGoal ? 'meta de hoje cumprida ✓' : `faltam ${s.pagesGoal - pagesToday} páginas`) })}
+    ${statCard({ label: 'Sequência de leitura', value: rs, unit: rs === 1 ? 'dia' : 'dias', foot: footText(`próximo marco: ${milestone} dias`) })}
+  </div>
+  <div class="grid g-2">
+    ${card({ title: 'Cronômetro de foco', sub: running ? 'Foco em andamento' : 'Escolha o tempo e o livro, e comece',
+      body: `<div class="focus">
+          <div class="focus-ring ${running ? 'live' : ''}" id="focus-ring" style="--p:${ringP}"><span id="focus-clock">${fmtClock(shown)}</span></div>
+          <div class="focus-side">
+            <div class="pills on-card">${presets}</div>
+            <div class="field"><label for="focus-book">Livro</label><select id="focus-book" class="input" data-change="focusBook" data-k="focus-book" ${running ? 'disabled' : ''}>${bookOpts}</select></div>
+            <div class="focus-btns">${running
+              ? `<button class="btn big" data-action="focusStop">${icon('stop')} Parar e registrar</button><button class="btn ghost big" data-action="focusDiscard">Descartar</button>`
+              : `<button class="btn big" data-action="focusStart">${icon('play')} Começar foco</button>`}</div>
+          </div>
+        </div>
+        <div class="card-foot">
+          <div class="kv"><span>Registrado hoje</span><b>${hmin(focusToday)}</b></div>
+          ${sessionRows || '<div class="empty" style="padding:8px 0">Nenhum foco registrado hoje.</div>'}
+          <form class="inline-form wrap-sm" data-submit="addFocus" style="margin-top:10px">
+            <input class="input num" name="min" type="number" min="1" max="600" placeholder="Minutos" style="max-width:110px" required aria-label="Minutos de foco">
+            <select class="input" name="book" aria-label="Livro">${`<option value="">Sem livro</option>${active.map(b => `<option value="${b.id}">${esc(b.title)}</option>`).join('')}`}</select>
+            <button class="btn ghost" type="submit">Registrar à mão</button>
+          </form>
+        </div>` })}
+    ${card({ title: 'Foco nos últimos 7 dias', sub: `Linha pontilhada = meta de ${hmin(goalF)} por dia`, body: `${barChart({ items: focus7, goal: goalF, unit: ' min', height: 190 })}${perBook ? `<div class="card-foot"><div class="field-label" style="margin-bottom:8px">Tempo de foco por livro</div>${perBook}</div>` : ''}` })}
   </div>
   <div class="grid g-2">
     ${card({ title: `${s.pagesGoal} páginas por dia`, sub: 'Últimos 7 dias · toque para marcar a meta do dia',
@@ -1282,16 +1558,35 @@ Views.estudos = () => {
               <button data-action="pagesStep" data-delta="5" aria-label="Mais 5 páginas">+</button></div></div>
           <div style="flex:1;min-width:180px"><div class="kv"><span>Sequência atual</span><b>${rs} ${rs === 1 ? 'dia' : 'dias'}</b></div>${progress((rs / milestone) * 100)}</div>
         </div>` })}
-    ${card({ title: 'Páginas lidas · últimos 14 dias', sub: 'Linha pontilhada = meta diária', body: barChart({ items: chartItems, goal: s.pagesGoal, unit: ' pág', height: 170 }) })}
+    ${card({ title: 'Páginas lidas · últimos 14 dias', sub: `Linha pontilhada = meta diária · ${pages14} páginas, ${fmt(rhythm)} por dia`, body: barChart({ items: chartItems, goal: s.pagesGoal, unit: ' pág', height: 170 }) })}
   </div>
-  ${card({ title: 'Livros sendo lidos', sub: 'Toque em "+10 páginas" conforme for avançando (também soma nas páginas de hoje)',
+  ${card({ title: 'Livros sendo lidos', sub: `${active.length} em andamento · ${done.length} ${done.length === 1 ? 'concluído' : 'concluídos'} · toque em "+10 páginas" conforme for avançando`,
     body: `${active.length ? active.map(bookRow).join('') : '<div class="empty">Nenhum livro em andamento. Adicione o que você está lendo.</div>'}
       <form class="form-grid card-foot" data-submit="addBook">
         <input class="input" name="title" placeholder="Título do livro" required maxlength="120" aria-label="Título">
         <input class="input" name="author" placeholder="Autor" maxlength="80" aria-label="Autor">
         <input class="input" name="total" type="number" min="1" placeholder="Nº de páginas" required aria-label="Número de páginas">
         <button class="btn" type="submit">${icon('plus')} Adicionar</button></form>
-      ${done.length ? `<div class="card-foot"><div class="field-label" style="margin-bottom:8px">Concluídos</div>${done.map(b => `<div class="row"><div class="grow"><span class="row-title">${esc(b.title)}</span> <span class="row-sub">· ${esc(b.author || '')} · ${b.total} páginas</span></div><span class="badge dark">Lido</span>${removeBtn(`data-list="books" data-id="${b.id}"`)}</div>`).join('')}</div>` : ''}` })}`;
+      ${done.length ? `<div class="card-foot"><div class="field-label" style="margin-bottom:8px">Concluídos</div>${done.map(b => `<div class="row"><div class="grow"><span class="row-title">${esc(b.title)}</span> <span class="row-sub">· ${esc(b.author || '')} · ${b.total} páginas</span></div><span class="badge dark">Lido</span>${removeBtn(`data-list="books" data-id="${b.id}"`)}</div>`).join('')}</div>` : ''}` })}
+  <div class="grid g-2">
+    ${card({ title: 'Anotações e frases', sub: nb ? `${nb.title} · ${notes.length} ${notes.length === 1 ? 'registro' : 'registros'}${Calc.bookFocus(nb.id) ? ` · ${hmin(Calc.bookFocus(nb.id))} de foco` : ''}` : 'Escolha um livro',
+      body: nb ? `<div class="pills on-card" style="margin-bottom:12px">${bookPills}</div>
+        <form class="note-form" data-submit="addNote" data-book="${nb.id}">
+          <select class="input" name="kind" aria-label="Tipo"><option value="nota">Anotação</option><option value="frase">Frase do livro</option></select>
+          <input class="input num" name="page" type="number" min="0" placeholder="Página" aria-label="Página">
+          <textarea class="input" name="text" rows="3" maxlength="500" required placeholder="Escreva a anotação ou copie a frase" aria-label="Texto"></textarea>
+          <button class="btn" type="submit">Salvar</button>
+        </form>
+        <div class="card-foot" style="margin-top:14px">${noteRows || '<div class="empty">Nenhuma anotação neste livro ainda.</div>'}</div>`
+        : '<div class="empty">Adicione um livro acima para guardar anotações e frases.</div>' })}
+    ${card({ title: 'Quero ler', sub: 'Sua lista de desejos. Ao começar, o livro vai para "sendo lidos"',
+      body: `${wishRows || '<div class="empty">Nenhum livro na lista. Anote o que você quer ler.</div>'}
+        <form class="form-grid card-foot" data-submit="addWish">
+          <input class="input" name="title" placeholder="Título do livro" required maxlength="120" aria-label="Título">
+          <input class="input" name="author" placeholder="Autor" maxlength="80" aria-label="Autor">
+          <input class="input" name="total" type="number" min="0" placeholder="Páginas (opcional)" aria-label="Número de páginas">
+          <button class="btn" type="submit">${icon('plus')} Adicionar</button></form>` })}
+  </div>`;
 };
 
 Views.emocional = () => {
@@ -1688,7 +1983,8 @@ Views.config = () => {
         ${setting('habitName', 'Hábito diário (Saúde)', 'text', 'maxlength="40"')}
         ${setting('trainGoal', 'Treinos por semana', 'number', 'min="1" max="7"')}
         ${setting('sleepGoal', 'Horas de sono por noite', 'number', 'min="4" max="12" step="0.5"')}
-        ${setting('pagesGoal', 'Páginas por dia', 'number', 'min="1" max="500"')}</div>` })}
+        ${setting('pagesGoal', 'Páginas por dia', 'number', 'min="1" max="500"')}
+        ${setting('focusGoal', 'Foco por dia (minutos)', 'number', 'min="5" max="600"')}</div>` })}
     ${card({ title: 'Trabalho', sub: 'Usado no pilar Trabalho', body: `<div class="fields">
         ${workSetting('company', 'Empresa', 'text')}
         ${workSetting('role', 'Cargo', 'text')}
@@ -1729,7 +2025,8 @@ function updateSync() { const el = document.getElementById('sync'); if (el) el.o
 
 function sidebarHtml(r) {
   const unseen = Store.mode !== 'loading' ? Store.state.demands.filter(d => !d.seen).length : 0;
-  const link = (id, label, ic) => `<a href="#${id}" class="${r === id ? 'active' : ''}" ${r === id ? 'aria-current="page"' : ''}>${icon(ic)}${id === 'trabalho' && unseen ? `<span class="nav-badge" aria-label="${unseen} novas demandas">${unseen}</span>` : ''}<span class="l-full">${esc(label)}</span><span class="l-short">${esc(label === 'Visão geral' ? 'Geral' : label === 'Configurações' ? 'Ajustes' : label)}</span></a>`;
+  const budgetN = Store.mode !== 'loading' ? Calc.budgetAlerts().length : 0;
+  const link = (id, label, ic) => `<a href="#${id}" class="${r === id ? 'active' : ''}" ${r === id ? 'aria-current="page"' : ''}>${icon(ic)}${id === 'financeiro' && budgetN ? `<span class="nav-badge warn" aria-label="${budgetN} categorias perto do limite">${budgetN}</span>` : ''}${id === 'trabalho' && unseen ? `<span class="nav-badge" aria-label="${unseen} novas demandas">${unseen}</span>` : ''}<span class="l-full">${esc(label)}</span><span class="l-short">${esc(label === 'Visão geral' ? 'Geral' : label === 'Configurações' ? 'Ajustes' : label)}</span></a>`;
   const ready = Store.mode !== 'loading';
   const st = ready ? Calc.status() : [];
   return `<div class="brand">Painel<span>.</span>vida</div>
@@ -1750,9 +2047,11 @@ function render() {
     $main.innerHTML = `<div class="loading"><div class="card"><div class="card-title">Abrindo seu painel…</div><p class="desc" style="margin-top:8px">${esc(Store.loadNote || 'Buscando seus dados salvos no Claude.')}</p></div></div>`;
     return;
   }
-  let top = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">${syncBadge()}</div>`;
+  let top = `<div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">${Focus.t ? `<a class="focus-chip" href="#estudos">${icon('timer')}<span id="focus-mini">${fmtClock(Focus.target() ? Focus.target() * 60000 - Focus.elapsed() : Focus.elapsed())}</span> em foco</a>` : ''}${syncBadge()}</div>`;
   const fresh = Store.state.demands.filter(d => !d.seen);
   if (fresh.length && r !== 'trabalho') { const last = fresh.reduce((a, b) => (b.date > a.date ? b : a)); top += `<div class="alert" role="status">${icon('mail')}<span><b>${fresh.length === 1 ? 'Nova demanda' : `${fresh.length} novas demandas`}</b> de ${esc(last.from || 'trabalho')}: ${esc(last.subject)}</span><button class="btn sm" data-nav="trabalho">Ver</button></div>`; }
+  const ba = r === 'visao' || r === 'financeiro' ? Calc.budgetAlerts() : [];
+  if (ba.length) top += `<div class="alert warn" role="status">${icon('alert')}<span><b>${ba.length === 1 ? 'Limite de categoria' : `${ba.length} categorias perto do limite`}</b> neste mês: ${ba.slice(0, 3).map(x => `${esc(x.name)} ${Math.round(x.pct)}% (${brl(x.eff)} de ${brl(x.limit)})`).join(' · ')}${ba.length > 3 ? ` · e mais ${ba.length - 3}` : ''}</span>${r === 'visao' ? '<button class="btn sm" data-nav="financeiro">Ver</button>' : ''}</div>`;
   if (Store.state.sample) top += `<div class="banner"><span>Você está vendo <b>dados de exemplo</b>. Quando quiser, comece com os seus.</span><button class="btn sm" data-action="clearSample">Começar do zero</button></div>`;
   else if (Store.fresh && r === 'visao') top += `<section class="card welcome"><div><div class="card-title">Bem-vindo ao seu Painel da Vida</div><p>Comece criando sua rotina em Tarefas, marcando um treino em Saúde ou lançando a receita do mês em Financeiro. Se preferir conhecer o painel antes, carregue dados de exemplo.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-nav="config">Definir minhas metas</button><button class="btn ghost" data-action="loadSample">Ver exemplo</button></div></section>`;
   $main.innerHTML = top + Views[r]();
@@ -1851,16 +2150,33 @@ const Actions = {
     ask('Desligar a leitura do Gmail? As demandas já salvas continuam no painel.', 'Desligar', () => { Store.state.settings.work.gmailOn = false; Gmail.stop(); Gmail.state = 'off'; commit(); });
     return false;
   },
+  focusPreset({ v }) { if (!Focus.t) UI.state.focusTarget = Number(v); },
+  focusStart() { Focus.start(); },
+  focusStop() { Focus.finish(false); },
+  focusDiscard() {
+    ask('Descartar este foco sem registrar o tempo?', 'Descartar', () => { Focus.finish(false, false); commit(); }, true);
+    return false;
+  },
+  wishStart({ id }) {
+    const S = Store.state, w = S.wishlist.find(x => x.id === id); if (!w) return false;
+    if (!(w.total > 0)) { toast('Informe o número de páginas para começar a ler.'); return false; }
+    S.books.push({ id: uid(), title: w.title, author: w.author, total: w.total, read: 0 });
+    S.wishlist = S.wishlist.filter(x => x.id !== id);
+    UI.state.noteBook = S.books[S.books.length - 1].id;
+    toast(`Começou a ler: ${w.title}`);
+  },
   shiftTaskDay({ delta }) { UI.state.taskDay = D.key(D.add(D.parse(UI.state.taskDay), Number(delta))); },
   remove({ list, id, date }) {
     const S = Store.state;
     const doIt = () => {
-      if (list === 'categories') S.finance.categories = S.finance.categories.filter(c => c !== id);
+      if (list === 'books') S.notes = S.notes.filter(n => n.book !== id);
+      if (list === 'categories') { S.finance.categories = S.finance.categories.filter(c => c !== id); delete S.finance.budgets[id]; }
+      else if (list === 'focus') { const d = Store.day(date); d.focus = (d.focus || []).filter(x => x.id !== id); }
       else if (list === 'todos') { const d = Store.day(date); d.todos = (d.todos || []).filter(x => x.id !== id); }
-      else { const arr = { records: S.records, books: S.books, goals: S.finance.goals, tasks: S.tasks, workGoals: S.workGoals, demands: S.demands }[list]; const i = arr ? arr.findIndex(x => x.id === id) : -1; if (i >= 0) arr.splice(i, 1); }
+      else { const arr = { records: S.records, books: S.books, goals: S.finance.goals, tasks: S.tasks, workGoals: S.workGoals, demands: S.demands, wishlist: S.wishlist, notes: S.notes, fixed: S.finance.fixed, installments: S.finance.installments }[list]; const i = arr ? arr.findIndex(x => x.id === id) : -1; if (i >= 0) arr.splice(i, 1); }
       commit();
     };
-    const msg = { books: 'Remover este livro?', goals: 'Remover esta meta e os aportes registrados?', workGoals: 'Remover este objetivo?', demands: 'Remover esta demanda do painel? (O e-mail continua no Gmail.)', tasks: 'Remover esta tarefa da rotina? Ela deixa de aparecer nos próximos dias.' }[list];
+    const msg = { books: 'Remover este livro e as anotações dele?', goals: 'Remover esta meta e os aportes registrados?', workGoals: 'Remover este objetivo?', demands: 'Remover esta demanda do painel? (O e-mail continua no Gmail.)', tasks: 'Remover esta tarefa da rotina? Ela deixa de aparecer nos próximos dias.' }[list];
     if (msg) ask(msg, 'Remover', doIt, true); else doIt();
     return false;
   },
@@ -1887,6 +2203,29 @@ const Forms = {
   },
   addDemand({ subject, from }) { Store.state.demands.push({ id: uid(), src: 'manual', from: (from || '').trim(), subject: subject.trim(), date: Date.now(), status: 'nova', seen: true }); },
   addWorkGoal({ name }) { Store.state.workGoals.push({ id: uid(), name: name.trim(), progress: 0, updatedAt: Date.now() }); },
+  addFocus({ min, book }) {
+    const m = Math.round(+min || 0);
+    if (m < 1 || m > 600) { toast('Informe de 1 a 600 minutos.'); return false; }
+    const d = Store.day(D.todayKey()); d.focus = d.focus || [];
+    d.focus.push({ id: uid(), min: m, book: book || '', at: Date.now() });
+    toast(`Registrei ${m} min de foco`);
+  },
+  addNote({ text, kind, page }, { book }) {
+    const t = (text || '').trim(), S = Store.state; if (!t || !book) return false;
+    if (JSON.stringify(S.notes.filter(n => n.book === book)).length > 200000) { toast('Esse livro já tem muitas anotações. Apague algumas para continuar.'); return false; }
+    S.notes.push({ id: uid(), book, kind: kind === 'frase' ? 'frase' : 'nota', text: t, page: Math.max(0, Math.round(+page || 0)), at: Date.now() });
+    UI.state.noteBook = book;
+  },
+  addWish({ title, author, total }) { Store.state.wishlist.push({ id: uid(), title: title.trim(), author: (author || '').trim(), total: Math.max(0, Math.round(+total || 0)) }); },
+  addFixed({ name, category, amount }) {
+    const a = +amount || 0; if (!name.trim() || a <= 0) return false;
+    Store.state.finance.fixed.push({ id: uid(), name: name.trim(), category: category || '', amount: a, from: D.monthKey(D.today()) });
+  },
+  addInstall({ name, category, amount, total, start }) {
+    const a = +amount || 0, n = Math.round(+total || 0);
+    if (!name.trim() || a <= 0 || n < 1 || n > 120) { toast('Confira o valor e o número de parcelas (de 1 a 120).'); return false; }
+    Store.state.finance.installments.push({ id: uid(), name: name.trim(), category: category || '', amount: a, total: n, start: /^\d{4}-\d{2}$/.test(start) ? start : D.monthKey(D.today()) });
+  },
   addRecord({ text }) { Store.state.records.unshift({ id: uid(), text: text.trim() }); },
   addCategory({ name }) {
     const n = name.trim(), cats = Store.state.finance.categories;
@@ -1904,6 +2243,9 @@ const Forms = {
 };
 
 const Changes = {
+  budget(v, { name }) { const n = Math.max(0, Math.round(+v || 0)), B = Store.state.finance.budgets; if (n) B[name] = n; else delete B[name]; },
+  focusBook(v) { UI.state.focusBook = v; },
+  wishPages(v, { id }) { const w = Store.state.wishlist.find(x => x.id === id); if (w) w.total = Math.max(0, Math.round(+v || 0)); },
   workSetting(v, { key }) {
     const w = Store.state.settings.work, val = v.trim();
     if ((key === 'start' || key === 'end') && !/^\d{2}:\d{2}$/.test(val)) return false;
