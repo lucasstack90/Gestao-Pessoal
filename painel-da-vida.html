@@ -623,6 +623,12 @@ a.link { color: var(--accent-ink); }
 .brief-item a.btn { text-decoration: none; }
 .card.brief { margin-bottom: 16px; }
 
+/* ---------- Curso do trabalho ---------- */
+.day.course { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.day.course .dot { background: var(--accent); border-color: var(--accent); }
+.day.plan-course { background: var(--accent-soft); color: var(--accent-ink); }
+.day.course.today, .day.plan-course.today { box-shadow: inset 0 0 0 2.5px var(--accent); }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -669,7 +675,7 @@ function defaultState() {
   return {
     sample: false,
     settings: { name: '', trainGoal: 5, sleepGoal: 8, pagesGoal: 15, focusGoal: 60, habitName: 'Caminhada de 20 min',
-      work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 2, 3, 4], gmailOn: false, gmailDomain: 'gerar.org.br', gmailSince: 0, gmailV: 0 } },
+      work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 3, 4], courseDays: [2], courseStart: '13:30', courseEnd: '17:30', courseName: 'Curso do trabalho', gmailOn: false, gmailDomain: 'gerar.org.br', gmailSince: 0, gmailV: 0 } },
     days: {},   // 'AAAA-MM-DD' -> { trained, sleep, energy, pages, habit }
     weeks: {},  // segunda 'AAAA-MM-DD' -> { feeling, good, insights, q1, q2, q3, ratings }
     records: [],
@@ -755,6 +761,7 @@ function sampleState() {
     const d = D.add(today, -i), wd = (d.getDay() + 6) % 7;
     if (wd > 4) continue;
     const roll = r();
+    if (wd === 2) { s.days[D.key(d)].work = { status: 'curso', in: '13:30', out: '17:30' }; continue; }
     s.days[D.key(d)].work = roll < 0.04 ? { status: 'folga' } : { status: 'ok', in: roll < 0.2 ? '13:40' : '13:30', out: roll > 0.85 ? '18:00' : '17:30' };
   }
   s.demands = [
@@ -810,12 +817,19 @@ function sampleState() {
   return s;
 }
 
+let MIGRATED = false;
 function normalize(raw) {
   const s = Object.assign(defaultState(), raw || {});
   s.settings = Object.assign(defaultState().settings, (raw && raw.settings) || {});
   s.finance = Object.assign(defaultState().finance, s.finance || {});
   ['days', 'weeks'].forEach(k => { if (!s[k] || typeof s[k] !== 'object') s[k] = {}; });
-  s.settings.work = Object.assign(defaultState().settings.work, (raw && raw.settings && raw.settings.work) || {});
+  const rawWork = (raw && raw.settings && raw.settings.work) || {};
+  s.settings.work = Object.assign(defaultState().settings.work, rawWork);
+  if (rawWork.days && rawWork.courseDays === undefined) { // versão antiga: o dia de curso sai dos dias de expediente
+    const rest = s.settings.work.days.filter(d => !s.settings.work.courseDays.includes(d));
+    if (rest.length) { s.settings.work.days = rest; MIGRATED = true; }
+  }
+  if (!Array.isArray(s.settings.work.courseDays)) s.settings.work.courseDays = [];
   ['records', 'books', 'tasks', 'workGoals', 'demands', 'wishlist', 'notes'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   if (!s.finance.months || typeof s.finance.months !== 'object') s.finance.months = {};
   if (!Array.isArray(s.finance.goals)) s.finance.goals = [];
@@ -944,6 +958,7 @@ async function boot() {
       Store.fresh = empty;
       Store.state = empty ? defaultState() : fromDocs(docs);
       render();
+      if (MIGRATED) { MIGRATED = false; Sync.push(); }
       Gmail.init(); Focus.init();
       return;
     }
@@ -1035,17 +1050,26 @@ const Calc = {
   /* Trabalho */
   toMin(t) { const [h, m] = String(t || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); },
   isWorkday(d) { return (Store.state.settings.work.days || []).includes((d.getDay() + 6) % 7); },
+  isCourseDay(d) { return (Store.state.settings.work.courseDays || []).includes((d.getDay() + 6) % 7); },
   shiftMin() { const w = Store.state.settings.work; return Math.max(0, Calc.toMin(w.end) - Calc.toMin(w.start)); },
+  courseMin() { const w = Store.state.settings.work; return Math.max(0, Calc.toMin(w.courseEnd) - Calc.toMin(w.courseStart)); },
+  /* minutos do dia marcados como expediente ('ok') ou curso ('curso') */
   workMin(k) {
     const v = (Calc.dayVal(k).work) || {}, w = Store.state.settings.work;
-    if (v.status !== 'ok') return 0;
-    return Math.max(0, Calc.toMin(v.out || w.end) - Calc.toMin(v.in || w.start));
+    if (v.status === 'ok') return Math.max(0, Calc.toMin(v.out || w.end) - Calc.toMin(v.in || w.start));
+    if (v.status === 'curso') return Math.max(0, Calc.toMin(v.out || w.courseEnd) - Calc.toMin(v.in || w.courseStart));
+    return 0;
   },
+  /* Hoje é expediente ou curso? Segue o que você marcou; sem marcação, vale o calendário. */
   shiftNow() {
-    const w = Store.state.settings.work, now = new Date();
-    const s = Calc.toMin(w.start), e = Calc.toMin(w.end), n = now.getHours() * 60 + now.getMinutes();
-    const state = !Calc.isWorkday(D.today()) ? 'off' : n < s ? 'before' : n >= e ? 'after' : 'during';
-    return { state, s, e, n, pct: e > s ? clamp(((n - s) / (e - s)) * 100, 0, 100) : 0 };
+    const w = Store.state.settings.work, now = new Date(), today = D.today();
+    const ws = (Calc.dayVal(D.key(today)).work || {}).status;
+    const course = ws === 'curso' || (ws !== 'ok' && Calc.isCourseDay(today));
+    const active = course || ws === 'ok' || Calc.isWorkday(today);
+    const startTxt = course ? w.courseStart : w.start, endTxt = course ? w.courseEnd : w.end;
+    const s = Calc.toMin(startTxt), e = Calc.toMin(endTxt), n = now.getHours() * 60 + now.getMinutes();
+    const state = !active ? 'off' : n < s ? 'before' : n >= e ? 'after' : 'during';
+    return { state, kind: course ? 'curso' : 'work', startTxt, endTxt, s, e, n, pct: e > s ? clamp(((n - s) / (e - s)) * 100, 0, 100) : 0 };
   },
   /* Tarefas de um dia: rotina fixa (que vale nesse dia da semana) + avulsas */
   /* work=false: tarefas pessoais (tela Tarefas); work=true: rotina do trabalho (módulo Trabalho) */
@@ -1079,16 +1103,16 @@ const Calc = {
     const finOk = !!fm.invoice || !!(S.finance.months[pmk] || {}).invoice || Calc.income(mk) > 0 || Calc.expenses(mk) > 0;
     const overBudget = Calc.budgetRows(mk).some(r => r.state === 'over');
     const sm = MONTHS_SHORT[today.getMonth()].toLowerCase();
-    const workdays = Calc.weekDays(mon).filter(Calc.isWorkday);
+    const workdays = Calc.weekDays(mon).filter(d => Calc.isWorkday(d) || Calc.isCourseDay(d));
     const before = workdays.filter(d => d < today).map(D.key);
-    const marked = k => ['ok', 'folga'].includes(((S.days[k] || {}).work || {}).status);
+    const marked = k => ['ok', 'curso', 'folga'].includes(((S.days[k] || {}).work || {}).status);
     const workOk = before.every(marked);
-    const worked = workdays.filter(d => d <= today && (((S.days[D.key(d)] || {}).work || {}).status === 'ok')).length;
+    const worked = workdays.filter(d => d <= today && ['ok', 'curso'].includes(((S.days[D.key(d)] || {}).work || {}).status)).length;
     return [
       { id: 'financeiro', ok: finOk && !overBudget, indicator: overBudget ? 'limite de categoria estourado' : fm.invoice ? `fatura de ${sm} enviada` : (finOk ? 'mês em lançamento' : `fatura de ${sm} pendente`), goal: 'fatura e gastos do mês', rule: 'mês com lançamentos ou fatura enviada e nenhuma categoria acima do limite' },
       { id: 'estudos', ok: rs > 0, indicator: `${rs} ${rs === 1 ? 'dia seguido' : 'dias seguidos'} lendo`, goal: `${s.pagesGoal} páginas por dia`, rule: 'meta de páginas cumprida ontem ou hoje' },
       { id: 'emocional', ok: mind, indicator: mind ? `nota da semana: ${fmt(Calc.mindAvg(wk))}/10` : 'check-in pendente', goal: 'check-in semanal', rule: 'check-in da semana feito' },
-      { id: 'trabalho', ok: workOk && !S.demands.some(d => d.status === 'nova' && Date.now() - d.date > 864e5), indicator: `${worked}/${workdays.length} dias de expediente · ${S.demands.filter(d => d.status !== 'concluida').length} demandas abertas`, goal: `${s.work.start} às ${s.work.end}`, rule: 'ponto marcado até ontem e nenhuma demanda nova parada há mais de 1 dia' },
+      { id: 'trabalho', ok: workOk && !S.demands.some(d => d.status === 'nova' && Date.now() - d.date > 864e5), indicator: `${worked}/${workdays.length} dias de expediente e curso · ${S.demands.filter(d => d.status !== 'concluida').length} demandas abertas`, goal: `${s.work.start} às ${s.work.end}`, rule: 'ponto marcado até ontem e nenhuma demanda nova parada há mais de 1 dia' },
       { id: 'saude', ok: tr >= expected, indicator: `${tr}/${s.trainGoal} treinos essa semana`, goal: `${s.trainGoal} treinos por semana`, rule: 'treinos no ritmo da meta semanal' },
     ];
   },
@@ -1946,33 +1970,43 @@ Views.trabalho = () => {
   const thisMon = D.monday(today), mon = D.add(thisMon, 7 * ui.workOffset);
   if (D.parse(ui.workDay) > today) ui.workDay = tk;
   const sel = ui.workDay, selDate = D.parse(sel), selWork = Calc.dayVal(sel).work || {};
-  const sh = Calc.shiftNow(), shiftMin = Calc.shiftMin();
-
+  const sh = Calc.shiftNow(), shiftMin = Calc.shiftMin(), courseMinDay = Calc.courseMin();
+  const isCourseNow = sh.kind === 'curso';
+  const statusOf = k => ((Calc.dayVal(k).work) || {}).status;
   const week = Calc.weekDays(mon);
-  const workdays = week.filter(Calc.isWorkday);
+  const shiftDays = week.filter(Calc.isWorkday), courseWeek = week.filter(Calc.isCourseDay);
   const weekMin = week.reduce((a, d) => a + Calc.workMin(D.key(d)), 0);
-  const expectedMin = workdays.length * shiftMin;
-  const mk = D.monthKey(today);
-  const monthDays = Calc.upToToday(Calc.monthDates(mk)).filter(d => ((Calc.dayVal(D.key(d)).work) || {}).status === 'ok').length;
+  const expectedMin = shiftDays.length * shiftMin + courseWeek.length * courseMinDay;
+  const mk = D.monthKey(today), monthDates = Calc.upToToday(Calc.monthDates(mk));
+  const monthDays = monthDates.filter(d => statusOf(D.key(d)) === 'ok').length;
+  const monthCourse = monthDates.filter(d => statusOf(D.key(d)) === 'curso');
+  const monthCourseMin = monthCourse.reduce((a, d) => a + Calc.workMin(D.key(d)), 0);
+  const courseNames = (w.courseDays || []).map(i => WEEKDAYS_FULL[i].replace('-feira', ''));
   const goals = S.workGoals;
   const goalsAvg = goals.length ? Math.round(goals.reduce((a, g) => a + g.progress, 0) / goals.length) : 0;
 
-  const todayWork = (Calc.dayVal(tk).work || {}).status;
+  const todayWork = statusOf(tk), what = isCourseNow ? 'curso' : 'expediente';
   let heroValue, heroUnit = '', heroFoot;
   if (todayWork === 'folga') { heroValue = 'Folga'; heroFoot = 'marcado como folga hoje'; }
-  else if (sh.state === 'off') { heroValue = 'Sem expediente'; heroFoot = 'hoje não é dia de trabalho'; }
-  else if (sh.state === 'before') { heroValue = w.start; heroUnit = 'começa'; heroFoot = `faltam ${hm(sh.s - sh.n)} para entrar`; }
-  else if (sh.state === 'during') { heroValue = hm(sh.e - sh.n); heroUnit = 'para acabar'; heroFoot = `expediente em andamento · sai às ${w.end}`; }
-  else { heroValue = 'Encerrado'; heroFoot = todayWork === 'ok' ? `ponto marcado · ${hm(Calc.workMin(tk))}` : 'lembre de marcar o ponto de hoje'; }
+  else if (sh.state === 'off') { heroValue = 'Sem expediente'; heroFoot = 'hoje não é dia de trabalho nem de curso'; }
+  else if (sh.state === 'before') { heroValue = sh.startTxt; heroUnit = 'começa'; heroFoot = `faltam ${hm(sh.s - sh.n)} para ${isCourseNow ? 'o curso' : 'entrar'}`; }
+  else if (sh.state === 'during') { heroValue = hm(sh.e - sh.n); heroUnit = 'para acabar'; heroFoot = `${what} em andamento · termina às ${sh.endTxt}`; }
+  else { heroValue = 'Encerrado'; heroFoot = ['ok', 'curso'].includes(todayWork) ? `${isCourseNow ? 'presença' : 'ponto'} marcado · ${hm(Calc.workMin(tk))}` : `lembre de marcar ${isCourseNow ? 'a presença no curso' : 'o ponto'} de hoje`; }
 
   const strip = week.map((d, i) => {
-    const k = D.key(d), st = ((Calc.dayVal(k).work) || {}).status, isW = Calc.isWorkday(d);
-    const cls = st === 'ok' ? 'done' : st === 'falta' ? 'miss' : st === 'folga' ? 'rest' : '';
-    const label = st === 'ok' ? 'trabalhou' : st === 'falta' ? 'falta' : st === 'folga' ? 'folga' : isW ? 'sem marcação' : 'não é dia de trabalho';
-    return `<button class="day ${cls} ${isW ? '' : 'offday'} ${k === tk ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-action="selectWorkDay" data-date="${k}" ${d > today ? 'disabled' : ''} aria-label="${WEEKDAYS[i]} ${d.getDate()}: ${label}" title="${label}"><span class="dot"></span>${WEEKDAYS[i]}</button>`;
+    const k = D.key(d), st = statusOf(k), isW = Calc.isWorkday(d), isC = Calc.isCourseDay(d);
+    const cls = st === 'ok' ? 'done' : st === 'curso' ? 'course' : st === 'falta' ? 'miss' : st === 'folga' ? 'rest' : '';
+    const label = st === 'ok' ? 'trabalhou' : st === 'curso' ? 'curso' : st === 'falta' ? 'falta' : st === 'folga' ? 'folga' : isC ? 'dia de curso' : isW ? 'sem marcação' : 'não é dia de trabalho';
+    return `<button class="day ${cls} ${isW || isC ? '' : 'offday'} ${isC && !st ? 'plan-course' : ''} ${k === tk ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-action="selectWorkDay" data-date="${k}" ${d > today ? 'disabled' : ''} aria-label="${WEEKDAYS[i]} ${d.getDate()}: ${label}" title="${label}"><span class="dot"></span>${WEEKDAYS[i]}</button>`;
   }).join('');
   const selLabel = sel === tk ? 'Hoje' : `${WEEKDAYS[(selDate.getDay() + 6) % 7]}, ${selDate.getDate()}/${selDate.getMonth() + 1}`;
   const stBtn = (v, l) => `<button class="pill ${selWork.status === v ? 'active' : ''}" data-action="setWork" data-date="${sel}" data-v="${v}" aria-pressed="${selWork.status === v}">${l}</button>`;
+
+  /* próximo curso */
+  let nextCourse = null, nextIdx = 0;
+  for (let i = 0; i < 15 && !nextCourse; i++) { const d = D.add(today, i); if (Calc.isCourseDay(d) && (i > 0 || sh.state === 'before' || sh.state === 'during')) { nextCourse = d; nextIdx = i; } }
+  const nextLabel = nextCourse ? (nextIdx === 0 ? 'hoje' : nextIdx === 1 ? 'amanhã' : `${WEEKDAYS[(nextCourse.getDay() + 6) % 7]}, ${nextCourse.getDate()}/${nextCourse.getMonth() + 1}`) : '';
+  const noteDay = (Calc.isCourseDay(selDate) || selWork.status === 'curso') ? sel : '';
 
   const wk = D.key(thisMon), wn = S.weeks[wk] || {};
   const note = (f, label, ph) => `<div class="field" style="margin-bottom:12px"><label for="work-${f}">${esc(label)}</label><textarea id="work-${f}" class="input" rows="2" data-input="mind" data-week="${wk}" data-field="${f}" data-k="work-${f}" placeholder="${esc(ph)}">${esc(wn[f] || '')}</textarea></div>`;
@@ -1986,27 +2020,28 @@ Views.trabalho = () => {
     </div>`).join('') : '<div class="empty">Nenhum objetivo ainda. Ex: dominar o sistema da empresa, fazer um curso.</div>';
 
   return `
-  ${pillarHeader('trabalho', `${w.role} na ${w.company} · ${w.start} às ${w.end}`,
+  ${pillarHeader('trabalho', `${w.role} na ${w.company} · ${w.start} às ${w.end}${courseNames.length ? ` · curso do trabalho: ${courseNames.join(', ')}` : ''}`,
     navGroup({ label: ui.workOffset === 0 ? 'Esta semana' : rangeLabel(mon), prevAttrs: 'data-action="shiftWork" data-delta="-1"', nextAttrs: 'data-action="shiftWork" data-delta="1"', nextDisabled: ui.workOffset >= 0 }))}
   <div class="stats">
-    ${statCard({ label: 'Expediente de hoje', value: esc(heroValue), unit: heroUnit, foot: footText(heroFoot), dark: true })}
-    ${statCard({ label: ui.workOffset === 0 ? 'Horas na semana' : 'Horas nessa semana', value: hm(weekMin), unit: `/ ${hm(expectedMin)}`, foot: footText(`${week.filter(d => ((Calc.dayVal(D.key(d)).work) || {}).status === 'ok').length} de ${workdays.length} dias trabalhados`) })}
-    ${statCard({ label: 'Demandas abertas', value: S.demands.filter(d => d.status !== 'concluida').length, foot: footText(`${S.demands.filter(d => d.status === 'nova').length} novas · ${monthDays} ${monthDays === 1 ? 'dia trabalhado' : 'dias trabalhados'} no mês`) })}
+    ${statCard({ label: isCourseNow ? 'Curso de hoje' : 'Expediente de hoje', value: esc(heroValue), unit: heroUnit, foot: footText(heroFoot), dark: true })}
+    ${statCard({ label: ui.workOffset === 0 ? 'Horas na semana' : 'Horas nessa semana', value: hm(weekMin), unit: `/ ${hm(expectedMin)}`, foot: footText(`${week.filter(d => statusOf(D.key(d)) === 'ok').length} de ${shiftDays.length} dias de expediente${courseWeek.length ? ` · ${week.filter(d => statusOf(D.key(d)) === 'curso').length} de ${courseWeek.length} de curso` : ''}`) })}
+    ${statCard({ label: 'Demandas abertas', value: S.demands.filter(d => d.status !== 'concluida').length, foot: footText(`${S.demands.filter(d => d.status === 'nova').length} novas · ${monthDays} ${monthDays === 1 ? 'dia trabalhado' : 'dias trabalhados'}${monthCourse.length ? ` · ${monthCourse.length} de curso` : ''} no mês`) })}
     ${statCard({ label: 'Objetivos profissionais', value: `${goalsAvg}%`, foot: footText(`média de ${goals.length} ${goals.length === 1 ? 'objetivo' : 'objetivos'}`) })}
   </div>
   ${demandsCard()}
   <div class="grid g-2">
     ${card({ title: 'Ponto da semana', sub: `${rangeLabel(mon)} · toque num dia para marcar`,
       body: `<div class="days">${strip}</div>
+        ${courseNames.length ? `<div class="row-meta">Azul claro = dia de curso (${esc(courseNames.join(', '))}). Toque no dia e escolha "Curso".</div>` : ''}
         <div class="card-foot" style="display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end">
-          <div><div class="field-label" style="margin-bottom:8px">${esc(selLabel)}</div><div class="pills on-card">${stBtn('ok', 'Trabalhei')}${stBtn('folga', 'Folga')}${stBtn('falta', 'Falta')}</div></div>
-          ${selWork.status === 'ok' ? `<div class="fields" style="flex:1;min-width:220px;max-width:320px">
-            <div class="field"><label for="w-in">Entrada</label><input id="w-in" class="input" type="time" value="${esc(selWork.in || w.start)}" data-change="workTime" data-date="${sel}" data-field="in" data-k="w-in"></div>
-            <div class="field"><label for="w-out">Saída</label><input id="w-out" class="input" type="time" value="${esc(selWork.out || w.end)}" data-change="workTime" data-date="${sel}" data-field="out" data-k="w-out"></div>
+          <div><div class="field-label" style="margin-bottom:8px">${esc(selLabel)}</div><div class="pills on-card">${stBtn('ok', 'Trabalhei')}${stBtn('curso', 'Curso')}${stBtn('folga', 'Folga')}${stBtn('falta', 'Falta')}</div></div>
+          ${(selWork.status === 'ok' || selWork.status === 'curso') ? `<div class="fields" style="flex:1;min-width:220px;max-width:320px">
+            <div class="field"><label for="w-in">Entrada</label><input id="w-in" class="input" type="time" value="${esc(selWork.in || (selWork.status === 'curso' ? w.courseStart : w.start))}" data-change="workTime" data-date="${sel}" data-field="in" data-k="w-in"></div>
+            <div class="field"><label for="w-out">Saída</label><input id="w-out" class="input" type="time" value="${esc(selWork.out || (selWork.status === 'curso' ? w.courseEnd : w.end))}" data-change="workTime" data-date="${sel}" data-field="out" data-k="w-out"></div>
           </div>` : ''}
         </div>` })}
-    ${card({ title: 'Expediente de hoje', sub: sh.state === 'off' ? 'Hoje não é dia de trabalho' : `${w.start} às ${w.end} · ${hm(shiftMin)}`,
-      body: `<div class="kv"><span>${w.start}</span><b>${sh.state === 'during' ? `${Math.round(sh.pct)}% do expediente` : sh.state === 'after' ? 'encerrado' : sh.state === 'before' ? 'ainda não começou' : 'folga'}</b><span>${w.end}</span></div>
+    ${card({ title: isCourseNow ? 'Curso de hoje' : 'Expediente de hoje', sub: sh.state === 'off' ? 'Hoje não é dia de trabalho nem de curso' : `${sh.startTxt} às ${sh.endTxt} · ${hm(sh.e - sh.s)}`,
+      body: `<div class="kv"><span>${sh.startTxt}</span><b>${sh.state === 'during' ? `${Math.round(sh.pct)}% do ${what}` : sh.state === 'after' ? 'encerrado' : sh.state === 'before' ? 'ainda não começou' : 'folga'}</b><span>${sh.endTxt}</span></div>
         ${progress(sh.state === 'after' ? 100 : sh.state === 'during' ? sh.pct : 0, 'thick')}
         <div class="card-foot">
           <div class="kv" style="margin-bottom:6px"><span class="card-title" style="font-size:14px">Rotina do trabalho</span><span class="small muted">só aparece aqui</span></div>
@@ -2014,10 +2049,23 @@ Views.trabalho = () => {
           <form class="inline-form wrap-sm" data-submit="addTask" style="margin-top:12px">
             <input type="hidden" name="pillar" value="trabalho"><input type="hidden" name="day" value="${tk}">
             <input class="input" name="name" placeholder="Nova tarefa da rotina" required maxlength="100" aria-label="Nova tarefa da rotina do trabalho">
-            <select class="input" name="repeat" style="max-width:130px" aria-label="Repetição"><option value="once">Só hoje</option><option value="weekdays">Dias úteis</option></select>
+            <select class="input" name="repeat" style="max-width:180px" aria-label="Repetição"><option value="once">Só hoje</option><option value="weekdays">Dias de expediente</option></select>
             <button class="btn" type="submit" aria-label="Adicionar tarefa">${icon('plus')}</button>
           </form>
         </div>` })}
+  </div>
+  <div class="grid g-2">
+    ${courseNames.length ? card({ title: w.courseName || 'Curso do trabalho', sub: `${courseNames.join(', ')} · ${w.courseStart} às ${w.courseEnd}`,
+      body: `<div class="kv"><span>Próximo curso</span><b>${nextCourse ? esc(nextLabel) : '—'}</b></div>
+        <div class="kv"><span>Cursos assistidos no mês</span><b>${monthCourse.length}</b></div>
+        <div class="kv"><span>Horas de curso no mês</span><b>${hm(monthCourseMin)}</b></div>
+        <div class="card-foot">${noteDay
+          ? `<div class="field"><label for="course-note">Anotações do curso · ${esc(selLabel)}</label><textarea id="course-note" class="input" rows="5" maxlength="1500" data-input="courseNote" data-date="${noteDay}" data-k="course-note" placeholder="O que foi visto, atividades pedidas, prazos...">${esc((Calc.dayVal(noteDay)).courseNote || '')}</textarea></div>`
+          : '<div class="empty" style="padding:6px 0">Toque no dia do curso em "Ponto da semana" para anotar o que viu.</div>'}</div>` }) : ''}
+    ${card({ title: 'Dias da rotina do trabalho', sub: 'Escolha em quais dias cada tarefa aparece (ex.: tire a quarta, dia de curso)',
+      body: S.tasks.filter(t => t.pillar === 'trabalho').map(t => `<div class="row routine-row"><div class="grow"><div class="row-title" style="font-weight:500">${esc(t.name)}</div></div>
+        <div class="wd" role="group" aria-label="Dias de ${esc(t.name)}">${WEEKDAYS.map((x, i) => `<button class="${(t.days || []).includes(i) ? 'on' : ''}" data-action="toggleTaskDay" data-id="${t.id}" data-wd="${i}" aria-pressed="${(t.days || []).includes(i)}">${x}</button>`).join('')}</div>
+        ${removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina')}</div>`).join('') || '<div class="empty">Nenhuma tarefa de rotina do trabalho ainda. Adicione em "Expediente de hoje".</div>' })}
   </div>
   <div class="grid g-2">
     ${card({ title: 'Registro da semana', sub: 'Anote para lembrar em avaliações e conversas com a chefia · salva sozinho',
@@ -2050,13 +2098,18 @@ Views.config = () => {
         ${workSetting('role', 'Cargo', 'text')}
         ${workSetting('start', 'Entrada', 'time')}
         ${workSetting('end', 'Saída', 'time')}
+        ${workSetting('courseName', 'Nome do curso', 'text')}
+        ${workSetting('courseStart', 'Curso: início', 'time')}
+        ${workSetting('courseEnd', 'Curso: fim', 'time')}
         ${workSetting('gmailDomain', 'Domínio dos e-mails de demanda', 'text')}
       </div>
       <div class="field" style="margin-top:14px"><span class="field-label">Integração com o Gmail</span>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${gmailLine()}
           ${s.work.gmailOn ? '<button class="btn ghost sm" data-action="gmailReset">Começar a contar de hoje</button><button class="btn ghost sm" data-action="gmailOff">Desligar</button>' : '<button class="btn sm" data-action="gmailConnect">Conectar Gmail</button>'}</div></div>
-      <div class="field" style="margin-top:14px"><span class="field-label">Dias de trabalho</span>
-        <div class="wd" role="group" aria-label="Dias de trabalho">${WEEKDAYS.map((w, i) => `<button class="${s.work.days.includes(i) ? 'on' : ''}" data-action="toggleWorkDay" data-wd="${i}" aria-pressed="${s.work.days.includes(i)}">${w}</button>`).join('')}</div></div>` })}
+      <div class="field" style="margin-top:14px"><span class="field-label">Dias de expediente</span>
+        <div class="wd" role="group" aria-label="Dias de trabalho">${WEEKDAYS.map((w, i) => `<button class="${s.work.days.includes(i) ? 'on' : ''}" data-action="toggleWorkDay" data-wd="${i}" aria-pressed="${s.work.days.includes(i)}">${w}</button>`).join('')}</div></div>
+      <div class="field" style="margin-top:14px"><span class="field-label">Dias de curso do trabalho</span>
+        <div class="wd" role="group" aria-label="Dias de curso">${WEEKDAYS.map((w, i) => `<button class="${(s.work.courseDays || []).includes(i) ? 'on' : ''}" data-action="toggleCourseDay" data-wd="${i}" aria-pressed="${(s.work.courseDays || []).includes(i)}">${w}</button>`).join('')}</div></div>` })}
   </div>
   <div class="grid g-2">
     ${card({ title: 'Categorias de gastos', sub: 'Usadas no pilar Financeiro',
@@ -2180,7 +2233,7 @@ const Actions = {
   setWork({ date, v }) {
     const d = Store.day(date), w = Store.state.settings.work, cur = (d.work || {}).status;
     if (cur === v) { delete d.work; return; }
-    d.work = v === 'ok' ? { status: 'ok', in: (d.work && d.work.in) || w.start, out: (d.work && d.work.out) || w.end } : { status: v };
+    d.work = v === 'ok' ? { status: 'ok', in: w.start, out: w.end } : v === 'curso' ? { status: 'curso', in: w.courseStart, out: w.courseEnd } : { status: v };
   },
   selectWorkDay({ date }) { if (D.parse(date) > D.today()) return false; UI.state.workDay = date; },
   shiftWork({ delta }) {
@@ -2190,8 +2243,18 @@ const Actions = {
   },
   toggleWorkDay({ wd }) {
     const w = Store.state.settings.work, n = Number(wd), days = new Set(w.days);
-    if (days.has(n)) { if (days.size === 1) { toast('Escolha pelo menos um dia de trabalho'); return false; } days.delete(n); } else days.add(n);
+    if (days.has(n)) { if (days.size === 1) { toast('Escolha pelo menos um dia de expediente'); return false; } days.delete(n); }
+    else { days.add(n); w.courseDays = (w.courseDays || []).filter(x => x !== n); }
     w.days = [...days].sort();
+  },
+  toggleCourseDay({ wd }) {
+    const w = Store.state.settings.work, n = Number(wd), cd = new Set(w.courseDays || []);
+    if (cd.has(n)) cd.delete(n);
+    else {
+      if (w.days.length === 1 && w.days.includes(n)) { toast('Mantenha ao menos um dia de expediente'); return false; }
+      cd.add(n); w.days = w.days.filter(x => x !== n);
+    }
+    w.courseDays = [...cd].sort();
   },
   workStep({ id, delta }) {
     const g = Store.state.workGoals.find(x => x.id === id); if (!g) return false;
@@ -2262,7 +2325,7 @@ const Forms = {
     const n = name.trim(); if (!n) return false;
     const k = day || UI.state.taskDay;
     if (repeat === 'once') { const d = Store.day(k); d.todos = d.todos || []; d.todos.push({ id: uid(), name: n, pillar: p || '', done: false }); }
-    else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey() });
+    else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? (p === 'trabalho' ? Store.state.settings.work.days.slice() : [0, 1, 2, 3, 4]) : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey() });
   },
   addDemand({ subject, from }) { Store.state.demands.push({ id: uid(), src: 'manual', from: (from || '').trim(), subject: subject.trim(), date: Date.now(), status: 'nova', seen: true }); },
   addWorkGoal({ name }) { Store.state.workGoals.push({ id: uid(), name: name.trim(), progress: 0, updatedAt: Date.now() }); },
@@ -2311,7 +2374,7 @@ const Changes = {
   wishPages(v, { id }) { const w = Store.state.wishlist.find(x => x.id === id); if (w) w.total = Math.max(0, Math.round(+v || 0)); },
   workSetting(v, { key }) {
     const w = Store.state.settings.work, val = v.trim();
-    if ((key === 'start' || key === 'end') && !/^\d{2}:\d{2}$/.test(val)) return false;
+    if (['start', 'end', 'courseStart', 'courseEnd'].includes(key) && !/^\d{2}:\d{2}$/.test(val)) return false;
     if (key === 'gmailDomain') { const dom = val.replace(/^@/, '').toLowerCase(); if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(dom)) { toast('Domínio inválido. Ex: gerar.org.br'); return false; } w[key] = dom; if (w.gmailOn) setTimeout(() => Gmail.restart(), 0); return; }
     w[key] = val;
     if (Calc.toMin(w.end) <= Calc.toMin(w.start)) toast('A saída está antes da entrada. Confira os horários.');
@@ -2348,7 +2411,10 @@ const Changes = {
     return false;
   },
 };
-const Inputs = { mind(v, { week, field }) { Store.week(week)[field] = v; Store.fresh = false; } };
+const Inputs = {
+  mind(v, { week, field }) { Store.week(week)[field] = v; Store.fresh = false; },
+  courseNote(v, { date }) { Store.day(date).courseNote = v; Store.fresh = false; },
+};
 
 document.addEventListener('click', e => {
   const m = e.target.closest('[data-modal]');

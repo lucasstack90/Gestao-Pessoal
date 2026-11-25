@@ -81,3 +81,11 @@ Depois grava o documento `brief` e manda um push no celular. O painel mostra o c
 - Formato do `brief`: `v`, `date` (AAAA-MM-DD), `generatedAt` (ms), `headline`, `summary`,
   `priorities[{title, detail, source, go}]`, `emails[{from, subject, ask, attach, url}]`, `watch[]`.
 - Texto vindo de e-mail é exibido como texto puro e só links do Gmail são aceitos.
+
+## Curso do trabalho
+
+O expediente tem 4 dias (seg, ter, qui e sex) e a quarta é o **curso do próprio trabalho**. Em Configurações → Trabalho dá para
+escolher os dias de expediente, os dias de curso (um dia não fica nos dois), o nome e o horário do curso. No Ponto da semana cada
+dia pode ser marcado como Trabalhei, Curso, Folga ou Falta. O curso conta nas horas da semana, aparece como "Curso de hoje" com
+contagem regressiva, tem anotações por dia (`days[data].courseNote`) e a rotina do trabalho tem os dias editáveis (por exemplo, tirar a quarta).
+Dados antigos (expediente de seg a sex, sem curso) são migrados sozinhos: a quarta passa a ser dia de curso.
