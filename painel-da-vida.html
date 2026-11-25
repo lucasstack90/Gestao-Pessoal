@@ -638,6 +638,49 @@ a.link { color: var(--accent-ink); }
 .task-form input[name="name"] { grid-column: 1 / -1; }
 @media (max-width: 720px) { .task-form { grid-template-columns: 1fr 1fr; } .task-form select[name="repeat"] { grid-column: 1 / -1; } }
 
+/* ---------- Semana, prioridades e programar em outros dias ---------- */
+.star { width: 28px; height: 28px; border: 0; background: transparent; border-radius: 8px; color: var(--goal); display: grid; place-items: center; cursor: pointer; flex: none; padding: 0; }
+.star:hover { background: var(--soft); color: var(--warn); }
+.star.on { color: var(--warn); }
+.star.on .ic { fill: currentColor; }
+.star .ic { width: 17px; height: 17px; }
+.icon-btn.sel { background: var(--accent-soft); color: var(--accent-ink); }
+.spread { margin: 2px 0 12px 38px; padding: 12px 14px; background: var(--soft); border-radius: 14px; display: flex; flex-direction: column; gap: 10px; }
+.day-picks { display: flex; gap: 6px; flex-wrap: wrap; }
+.pick { position: relative; cursor: pointer; }
+.pick input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.pick span { display: inline-block; padding: 6px 12px; border-radius: 99px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.pick input:checked + span { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.pick input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.spread-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.form-extra { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.form-extra .field-label { margin: 0 4px 0 8px; }
+.weekgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.wcell { text-align: left; border: 0; background: var(--soft); border-radius: 14px; padding: 10px; min-height: 108px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; min-width: 0; color: var(--ink); font: inherit; transition: background .15s; }
+.wcell:hover { background: var(--hover); }
+.wcell.past { opacity: .65; }
+.wcell.today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.wcell.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.wc-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--ink-3); }
+.wc-h b { color: var(--ink); font-size: 13px; }
+.wc-n { font-size: 11.5px; color: var(--ink-3); margin-bottom: 2px; }
+.wc-t { font-size: 12px; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc-t i { font-style: normal; color: var(--accent-ink); font-weight: 600; }
+.wc-t.done { text-decoration: line-through; color: var(--ink-3); }
+.wc-more { font-size: 11.5px; color: var(--ink-3); }
+.top3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 900px) {
+  .weekgrid { display: flex; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 6px; margin-right: -4px; }
+  .wcell { flex: 0 0 156px; scroll-snap-align: start; }
+  .top3 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .spread { margin-left: 0; }
+  .task { flex-wrap: wrap; row-gap: 6px; }
+  .task-name { min-width: 150px; }
+  .task .time-in { margin-left: 38px; }
+}
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -727,7 +770,7 @@ function sampleState() {
     s.tasks.forEach(t => { if (r() < (i <= 2 ? 1 : 0.75)) day.done[t.id] = true; });
   }
   s.days[D.key(today)].done = { [s.tasks[0].id]: true, [s.tasks[1].id]: true };
-  s.days[D.key(today)].todos = [{ id: uid(), name: 'Pagar a conta de luz', time: '15:00', pillar: 'financeiro', done: false }, { id: uid(), name: 'Marcar consulta no dentista', time: '16:30', pillar: 'saude', done: true }];
+  s.days[D.key(today)].todos = [{ id: uid(), name: 'Pagar a conta de luz', time: '15:00', star: true, pillar: 'financeiro', done: false }, { id: uid(), name: 'Marcar consulta no dentista', time: '16:30', pillar: 'saude', done: true }];
   const mon = D.monday(today);
   const refl = [
     ['Semana leve, consegui manter os treinos.', 'Acordar sem pressa ajudou muito.', 'Dormir antes das 23h'],
@@ -814,6 +857,10 @@ function sampleState() {
     { id: uid(), book: s.books[0].id, kind: 'nota', text: 'Antes de aceitar um compromisso, perguntar: isso é essencial?', page: 87, at: Date.now() - 2 * 864e5 },
     { id: uid(), book: s.books[1].id, kind: 'nota', text: 'Hábito = gatilho, rotina e recompensa. Trocar a rotina e manter o gatilho.', page: 54, at: Date.now() - 864e5 },
   ];
+  const t1 = D.key(D.add(today, 1)), t2 = D.key(D.add(today, 2));
+  s.days[t1] = { todos: [{ id: uid(), name: 'Fazer o artigo', pillar: 'estudos', done: false, time: '14:00', star: true }] };
+  s.days[t2] = { todos: [{ id: uid(), name: 'Revisar os gastos do mês', pillar: 'financeiro', done: false, time: '19:00' }] };
+  s.weeks[D.key(D.monday(today))].top = ['Entregar o artigo do TCC', 'Fechar o orçamento do mês', 'Treinar 5 vezes'];
   s.wishlist = [
     { id: uid(), title: 'Hábitos Atômicos', author: 'James Clear', total: 320 },
     { id: uid(), title: 'A Coragem de Ser Imperfeito', author: 'Brené Brown', total: 0 },
@@ -1086,7 +1133,7 @@ const Calc = {
     const S = Store.state, wd = (D.parse(k).getDay() + 6) % 7, day = S.days[k] || {}, done = day.done || {};
     const keep = t => (work ? t.pillar === 'trabalho' : t.pillar !== 'trabalho');
     const rec = S.tasks.filter(t => keep(t) && (t.days || []).includes(wd) && (!t.from || t.from <= k))
-      .map(t => ({ id: t.id, name: t.name, pillar: t.pillar, rec: true, done: !!done[t.id], time: t.time || '' }));
+      .map(t => ({ id: t.id, name: t.name, pillar: t.pillar, rec: true, done: !!done[t.id], time: t.time || '', star: !!t.star }));
     const one = (day.todos || []).filter(keep).map(t => ({ ...t, rec: false, time: t.time || '' }));
     /* com horário primeiro, do mais cedo ao mais tarde; sem horário depois, na ordem de sempre */
     return [...rec, ...one].map((t, i) => ({ t, i })).sort((a, b) => (a.t.time && b.t.time) ? (a.t.time === b.t.time ? a.i - b.i : a.t.time < b.t.time ? -1 : 1) : a.t.time ? -1 : b.t.time ? 1 : a.i - b.i).map(x => x.t);
@@ -1129,7 +1176,7 @@ const Calc = {
 };
 
 /* ---------------- Componentes ---------------- */
-const UI = { highlight: new Set(), state: { focusTarget: 25, focusBook: '', noteBook: '', demFilter: 'abertas', taskDay: D.todayKey(), workOffset: 0, workDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
+const UI = { highlight: new Set(), spread: null, state: { focusTarget: 25, focusBook: '', noteBook: '', demFilter: 'abertas', taskDay: D.todayKey(), workOffset: 0, workDay: D.todayKey(), ovMetric: 'treinos', ovPeriod: 'semanas', calOffset: 0, trainOffset: 0, sleepDay: D.todayKey(), mindOffset: 0, finMonth: D.monthKey(D.today()) }, modal: null };
 
 const ICONS = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -1158,6 +1205,7 @@ const ICONS = {
   play: '<polygon points="6 4 20 12 6 20 6 4"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
   alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  star: '<polygon points="12 2 15.1 8.6 22 9.3 16.8 14 18.2 21 12 17.5 5.8 21 7.2 14 2 9.3 8.9 8.6 12 2"/>',
   list: '<rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 9"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1234,13 +1282,22 @@ function nextUp(list, date) {
 }
 function taskRow(t, date, removeRec = false) {
   const p = t.pillar ? pillar(t.pillar) : null, late = isLate(t, date);
-  return `<div class="task ${t.done ? 'done' : ''}">
+  const sp = !!UI.spread && UI.spread.id === t.id && UI.spread.date === date;
+  const row = `<div class="task ${t.done ? 'done' : ''}">
     <button class="check ${t.done ? 'on' : ''}" data-action="toggleTask" data-date="${date}" data-id="${t.id}" data-rec="${t.rec ? 1 : 0}" aria-pressed="${t.done}" aria-label="${t.done ? 'Desmarcar' : 'Marcar'}: ${esc(t.name)}">${icon('check')}</button>
     <span class="task-name">${esc(t.name)}</span>
+    <button class="star ${t.star ? 'on' : ''}" data-action="toggleStar" data-date="${date}" data-id="${t.id}" data-rec="${t.rec ? 1 : 0}" aria-pressed="${!!t.star}" aria-label="${t.star ? 'Tirar de prioridade' : 'Marcar como prioridade'}: ${esc(t.name)}" title="${t.rec ? 'Prioridade em todos os dias desta rotina' : 'Prioridade do dia (até 3)'}">${icon('star')}</button>
     <input class="time-in ${t.time ? 'has' : ''} ${late ? 'late' : ''}" type="time" value="${esc(t.time || '')}" data-change="taskTime" data-id="${t.id}" data-date="${date}" data-rec="${t.rec ? 1 : 0}" data-k="tt-${t.id}-${date}" aria-label="Horário de ${esc(t.name)}" title="${late ? 'Atrasada' : 'Horário (opcional)'}">
     ${p && !removeRec ? `<span class="tag">${esc(p.name)}</span>` : ''}
-    ${t.rec ? `<span class="tag soft">rotina</span>${removeRec ? removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina') : ''}` : removeBtn(`data-list="todos" data-date="${date}" data-id="${t.id}"`, 'Remover tarefa')}
+    ${t.rec ? `<span class="tag soft">rotina</span>${removeRec ? removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina') : ''}`
+      : `<button class="icon-btn plain ${sp ? 'sel' : ''}" data-action="openSpread" data-date="${date}" data-id="${t.id}" aria-label="Programar em outros dias: ${esc(t.name)}" title="Programar em outros dias">${icon('calendar')}</button>${removeBtn(`data-list="todos" data-date="${date}" data-id="${t.id}"`, 'Remover tarefa')}`}
   </div>`;
+  if (!sp) return row;
+  const days = Calc.range(D.add(D.parse(date), 1), 7).filter(d => d >= D.today());
+  const at = `data-date="${date}" data-id="${t.id}"`;
+  return row + `<div class="spread"><div class="field-label">Programar "${esc(t.name)}" para:</div>
+    <div class="day-picks">${days.map(d => `<label class="pick"><input type="checkbox" value="${D.key(d)}"><span>${WEEKDAYS[(d.getDay() + 6) % 7]} ${d.getDate()}</span></label>`).join('')}</div>
+    <div class="spread-actions"><button class="btn sm" data-action="spreadGo" data-mode="copy" ${at}>Copiar para esses dias</button><button class="btn ghost sm" data-action="spreadGo" data-mode="move" ${at}>Mover</button><button class="btn ghost sm" data-action="openSpread" ${at}>Cancelar</button></div></div>`;
 }
 function dayName(k) {
   const today = D.today(), d = D.parse(k);
@@ -1263,6 +1320,21 @@ Views.tarefas = () => {
   const personal = S.tasks.filter(t => t.pillar !== 'trabalho');
   const options = `<option value="">Sem pilar</option>${PILLARS.filter(p => p.id !== 'trabalho').map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}`;
 
+  const stars = pend.filter(t => t.star), rest = pend.filter(t => !t.star);
+  const carryable = (Calc.dayVal(k).todos || []).filter(t => !t.done && t.pillar !== 'trabalho').length;
+  const ivy = pend.length > 6 ? ' · muitas tarefas: o método Ivy Lee sugere até 6 por dia' : '';
+  const weekMon = D.monday(D.parse(k)), wkKey = D.key(weekMon), wTop = (S.weeks[wkKey] || {}).top || [];
+  const alsoDays = Calc.range(D.add(D.parse(k), 1), 6).filter(d => d >= today);
+  const planner = card({ cls: 'brief', title: 'Semana', sub: `${rangeLabel(weekMon)} · toque num dia para abrir`,
+    body: `<div class="weekgrid">${Calc.weekDays(weekMon).map((d, i) => {
+      const kk = D.key(d), l = Calc.tasksFor(kk), pn = l.filter(t => !t.done).length;
+      return `<button class="wcell ${kk === k ? 'sel' : ''} ${kk === tk ? 'today' : ''} ${d < today ? 'past' : ''}" data-action="setUi" data-key="taskDay" data-value="${kk}" aria-label="${WEEKDAYS[i]} ${d.getDate()}: ${l.length} tarefas, ${pn} pendentes">
+        <div class="wc-h"><b>${WEEKDAYS[i]}</b><span>${d.getDate()}</span></div><div class="wc-n">${l.length ? `${l.length - pn} de ${l.length} feitas` : 'sem tarefas'}</div>
+        ${l.slice(0, 3).map(t => `<div class="wc-t ${t.done ? 'done' : ''}">${t.star ? '★ ' : ''}${t.time ? `<i>${t.time}</i> ` : ''}${esc(t.name)}</div>`).join('')}${l.length > 3 ? `<div class="wc-more">+${l.length - 3}</div>` : ''}</button>`;
+    }).join('')}</div>
+    <div class="card-foot"><div class="field-label" style="margin-bottom:8px">Foco da semana · até 3 prioridades</div>
+      <div class="top3">${[0, 1, 2].map(i => `<input class="input sm" placeholder="${i + 1}ª prioridade da semana" maxlength="120" value="${esc(wTop[i] || '')}" data-input="weekTop" data-week="${wkKey}" data-idx="${i}" data-k="wt-${i}" aria-label="Prioridade ${i + 1} da semana">`).join('')}</div></div>` });
+
   const routine = personal.length ? personal.map(t => `<div class="row routine-row">
       <div class="grow"><div class="row-title" style="font-weight:500">${esc(t.name)}</div>${t.pillar ? `<div class="row-sub">${esc(pillar(t.pillar).name)}</div>` : ''}</div>
       <input class="time-in ${t.time ? 'has' : ''}" type="time" value="${esc(t.time || '')}" data-change="taskTime" data-id="${t.id}" data-rec="1" data-k="rt-${t.id}" aria-label="Horário de ${esc(t.name)}">
@@ -1279,10 +1351,12 @@ Views.tarefas = () => {
     ${statCard({ label: 'Últimos 7 dias', value: `${weekPct}%`, foot: footText('média de tarefas concluídas') })}
     ${statCard({ label: 'Rotina fixa', value: personal.length, unit: personal.length === 1 ? 'tarefa' : 'tarefas' })}
   </div>
+  ${planner}
   <div class="grid g-21">
-    ${card({ title: k === tk ? 'Tarefas de hoje' : `Tarefas · ${dayName(k)}`, sub: list.length ? `${fin.length} de ${list.length} concluídas${nextUp(list, k) ? ` · ${nextUp(list, k)}` : ''}` : 'Nenhuma tarefa neste dia',
+    ${card({ title: k === tk ? 'Tarefas de hoje' : `Tarefas · ${dayName(k)}`, sub: list.length ? `${fin.length} de ${list.length} concluídas${nextUp(list, k) ? ` · ${nextUp(list, k)}` : ''}${ivy}` : 'Nenhuma tarefa neste dia',
+      right: carryable ? `<button class="btn ghost sm" data-action="carryOver" data-date="${k}" title="Método Ivy Lee: o que sobrou vai para a lista do dia seguinte">Levar pendentes para o dia seguinte</button>` : '',
       body: `${list.length ? `<div style="margin-bottom:10px">${progress((fin.length / list.length) * 100, 'thick')}</div>` : ''}
-        ${pend.map(t => taskRow(t, k)).join('')}
+        ${stars.length ? `<div class="field-label" style="margin:4px 0 2px">Prioridades do dia · ${stars.length}/3</div>${stars.map(t => taskRow(t, k)).join('')}${rest.length ? '<div class="field-label" style="margin:14px 0 2px">Outras tarefas</div>' : ''}` : ''}${rest.map(t => taskRow(t, k)).join('')}
         ${fin.length ? `<div class="field-label" style="margin:14px 0 2px">Concluídas</div>${fin.map(t => taskRow(t, k)).join('')}` : ''}
         ${!list.length ? '<div class="empty">Adicione a primeira tarefa abaixo.</div>' : ''}
         <form class="task-form card-foot" data-submit="addTask">
@@ -1291,6 +1365,7 @@ Views.tarefas = () => {
           <select class="input" name="pillar" aria-label="Pilar">${options}</select>
           <select class="input" name="repeat" aria-label="Repetição"><option value="once">Só ${k === tk ? 'hoje' : 'neste dia'}</option><option value="daily">Todo dia</option><option value="weekdays">Dias úteis</option></select>
           <button class="btn" type="submit">${icon('plus')} Adicionar</button>
+          <div class="form-extra"><label class="pick"><input type="checkbox" name="star"><span>★ Prioridade do dia</span></label>${alsoDays.length ? `<span class="field-label">Também em:</span>${alsoDays.map(d => `<label class="pick"><input type="checkbox" name="also-${D.key(d)}"><span>${WEEKDAYS[(d.getDay() + 6) % 7]} ${d.getDate()}</span></label>`).join('')}` : ''}</div>
         </form>` })}
     ${card({ title: 'Últimos 7 dias', sub: '% das tarefas concluídas por dia', body: barChart({ items: last7, unit: '%', height: 170 }) })}
   </div>
@@ -1398,7 +1473,7 @@ Views.visao = () => {
   </div>
   ${(() => {
     const tl = Calc.tasksFor(D.key(today)), td = tl.filter(t => t.done).length;
-    const shown = [...tl.filter(t => !t.done), ...tl.filter(t => t.done)].slice(0, 6);
+    const pendAll = tl.filter(t => !t.done), shown = [...pendAll.filter(t => t.star), ...pendAll.filter(t => !t.star), ...tl.filter(t => t.done)].slice(0, 6);
     return `<div class="grid">${card({ title: 'Tarefas de hoje', sub: tl.length ? `${td} de ${tl.length} concluídas${nextUp(tl, D.key(today)) ? ` · ${nextUp(tl, D.key(today))}` : ''}` : 'Nenhuma tarefa para hoje',
       right: `<button class="btn ghost sm" data-nav="tarefas">${tl.length ? 'Ver todas' : 'Adicionar tarefas'}</button>`,
       body: tl.length ? `<div style="margin-bottom:6px">${progress((td / tl.length) * 100)}</div>${shown.map(t => taskRow(t, D.key(today))).join('')}${tl.length > 6 ? `<div class="row-meta">e mais ${tl.length - 6} em Tarefas</div>` : ''}`
@@ -2243,6 +2318,33 @@ const Actions = {
     ask('Remover a fatura deste mês?', 'Remover', () => { delete Store.month(month).invoice; commit(); }, true);
     return false;
   },
+  toggleStar({ date, id, rec }) {
+    const S = Store.state;
+    const t = rec === '1' ? S.tasks.find(x => x.id === id) : (Store.day(date).todos || []).find(x => x.id === id);
+    if (!t) return false;
+    if (t.star) { delete t.star; return; }
+    if (Calc.tasksFor(date, t.pillar === 'trabalho').filter(x => !x.done && x.star).length >= 3) { toast('Até 3 prioridades por dia. Tire a estrela de outra antes.'); return false; }
+    t.star = true;
+  },
+  openSpread({ date, id }) { const c = UI.spread; UI.spread = (c && c.id === id && c.date === date) ? null : { id, date }; },
+  spreadGo({ date, id, mode }, el) {
+    const keys = [...el.closest('.spread').querySelectorAll('input:checked')].map(i => i.value);
+    if (!keys.length) { toast('Escolha ao menos um dia.'); return false; }
+    const src = Store.day(date), t = (src.todos || []).find(x => x.id === id);
+    if (!t) return false;
+    keys.forEach(k => { const d = Store.day(k); d.todos = d.todos || []; d.todos.push({ ...t, id: uid(), done: false }); });
+    if (mode === 'move') src.todos = src.todos.filter(x => x.id !== id);
+    UI.spread = null;
+    toast(`${mode === 'move' ? 'Movida' : 'Copiada'} para ${keys.length} ${keys.length === 1 ? 'dia' : 'dias'}`);
+  },
+  carryOver({ date }) {
+    const src = Store.day(date), next = Store.day(D.key(D.add(D.parse(date), 1)));
+    const move = (src.todos || []).filter(t => !t.done && t.pillar !== 'trabalho');
+    if (!move.length) return false;
+    src.todos = src.todos.filter(t => !move.includes(t));
+    next.todos = [...(next.todos || []), ...move];
+    toast(`${move.length} ${move.length === 1 ? 'tarefa levada' : 'tarefas levadas'} para o dia seguinte`);
+  },
   toggleTask({ date, id, rec }) {
     const day = Store.day(date);
     if (rec === '1') { day.done = day.done || {}; day.done[id] = !day.done[id]; if (!day.done[id]) delete day.done[id]; }
@@ -2347,11 +2449,14 @@ const Actions = {
 };
 
 const Forms = {
-  addTask({ name, pillar: p, repeat, day, time }) {
+  addTask({ name, pillar: p, repeat, day, time, star, ...rest }) {
     const n = name.trim(); if (!n) return false;
     const k = day || UI.state.taskDay, tm = /^\d{2}:\d{2}$/.test(time || '') ? { time } : {};
-    if (repeat === 'once') { const d = Store.day(k); d.todos = d.todos || []; d.todos.push({ id: uid(), name: n, pillar: p || '', done: false, ...tm }); }
-    else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? (p === 'trabalho' ? Store.state.settings.work.days.slice() : [0, 1, 2, 3, 4]) : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey(), ...tm });
+    const also = Object.keys(rest).filter(x => x.startsWith('also-')).map(x => x.slice(5)).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x));
+    let st = star ? { star: true } : {};
+    if (star && Calc.tasksFor(k, p === 'trabalho').filter(x => !x.done && x.star).length >= 3) { st = {}; toast('Até 3 prioridades por dia: adicionei sem estrela.'); }
+    if (repeat === 'once') { [k, ...also].forEach(dk => { const d = Store.day(dk); d.todos = d.todos || []; d.todos.push({ id: uid(), name: n, pillar: p || '', done: false, ...tm, ...st }); }); if (also.length) toast(`Tarefa criada em ${also.length + 1} dias`); }
+    else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? (p === 'trabalho' ? Store.state.settings.work.days.slice() : [0, 1, 2, 3, 4]) : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey(), ...tm, ...st });
   },
   addDemand({ subject, from }) { Store.state.demands.push({ id: uid(), src: 'manual', from: (from || '').trim(), subject: subject.trim(), date: Date.now(), status: 'nova', seen: true }); },
   addWorkGoal({ name }) { Store.state.workGoals.push({ id: uid(), name: name.trim(), progress: 0, updatedAt: Date.now() }); },
@@ -2450,6 +2555,7 @@ const Changes = {
 const Inputs = {
   mind(v, { week, field }) { Store.week(week)[field] = v; Store.fresh = false; },
   courseNote(v, { date }) { Store.day(date).courseNote = v; Store.fresh = false; },
+  weekTop(v, { week, idx }) { const w = Store.week(week); w.top = Array.isArray(w.top) ? w.top : ['', '', '']; w.top[Number(idx)] = v; Store.fresh = false; },
 };
 
 document.addEventListener('click', e => {

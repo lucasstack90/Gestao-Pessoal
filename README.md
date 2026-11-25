@@ -20,7 +20,7 @@ mas aí os dados ficam salvos só naquele navegador.
 
 | Pilar | O que acompanha |
 |---|---|
-| Tarefas | Tarefas pessoais do dia para marcar, cada uma com horário opcional (ordenadas por horário, com aviso de atrasada e "próxima") (o trabalho fica separado, no módulo Trabalho): rotina fixa (todo dia, dias úteis ou dias escolhidos) e tarefas avulsas de um dia; sequência de dias com tudo feito e % dos últimos 7 dias |
+| Tarefas | Tarefas pessoais do dia para marcar, cada uma com horário opcional (ordenadas por horário, com aviso de atrasada e "próxima"), prioridades do dia com estrela (até 3), painel da semana e programação em outros dias (o trabalho fica separado, no módulo Trabalho): rotina fixa (todo dia, dias úteis ou dias escolhidos) e tarefas avulsas de um dia; sequência de dias com tudo feito e % dos últimos 7 dias |
 | Visão geral | Resumo do dia preparado às 5h (demandas do e-mail + o que está no painel), tarefas de hoje, pilares em dia, saldo do mês, páginas e treinos da semana, gráfico de evolução, calendário e tabela de status |
 | 01 · Financeiro | Fatura do mês (o arquivo fica guardado), receita x despesas, gastos por categoria com limite e aviso a partir de 80%, gastos fixos e parcelas com o total comprometido nos próximos 6 meses, metas com aportes em R$ |
 | 02 · Estudos | Cronômetro de foco (25, 45, 60 min ou livre) com registro de tempo por livro e meta diária, anotações e frases de cada livro, lista "quero ler", meta de páginas por dia, sequência, últimos 14 dias e livros com previsão de término |
@@ -96,3 +96,16 @@ Cada tarefa (da rotina, avulsa ou do trabalho) pode ter um horário opcional (`t
 da própria linha. Na rotina o horário vale para todos os dias; numa avulsa vale só para ela. As tarefas do dia ficam ordenadas por horário
 (sem horário vêm depois), o horário fica vermelho quando passa e a tarefa ainda não foi feita, e o cartão mostra "próxima: ... (em 25 min)".
 O painel não envia notificação no horário: o aviso é visual, enquanto o painel está aberto, e o resumo das 5h cita os horários do dia.
+
+## Organização da semana (métodos pesquisados)
+
+Escolhi, a partir de uma pesquisa na web, os métodos que cabem no painel:
+
+- **Ivy Lee / "o mais importante primeiro"**: estrela de **prioridade do dia** (até 3 por dia, limite aplicado pelo painel); aviso quando há mais de
+  6 tarefas pendentes; botão **Levar pendentes para o dia seguinte** (o que sobrou vai para a lista de amanhã).
+- **Revisão e planejamento semanal**: cartão **Semana** com os 7 dias (tarefas, horários e estrelas de cada dia, toque para abrir o dia) e **Foco da
+  semana** com até 3 prioridades (`weeks[segunda].top`).
+- **Time blocking**: já coberto pelo horário nas tarefas; o resumo das 5h avisa conflitos com expediente e curso.
+- **Programar em outros dias**: ao criar, marque "Também em:" (próximos 6 dias); numa tarefa avulsa, o botão de calendário copia ou move para outros dias.
+
+Ficaram de fora por enquanto: matriz de Eisenhower (importante x urgente), caixa de entrada GTD, dia temático e agrupamento de tarefas parecidas.
