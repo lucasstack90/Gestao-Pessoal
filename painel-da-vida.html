@@ -629,6 +629,15 @@ a.link { color: var(--accent-ink); }
 .day.plan-course { background: var(--accent-soft); color: var(--accent-ink); }
 .day.course.today, .day.plan-course.today { box-shadow: inset 0 0 0 2.5px var(--accent); }
 
+/* ---------- Horário das tarefas ---------- */
+.time-in { width: 120px; flex: none; padding: 5px 8px; border: 0; border-radius: 9px; background: var(--soft); color: var(--ink-3); font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.time-in.has { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.time-in.late { background: var(--danger-bg); color: var(--danger-fg); }
+.time-in:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.task-form { grid-template-columns: 124px minmax(0, 1fr) minmax(0, 1fr) auto; }
+.task-form input[name="name"] { grid-column: 1 / -1; }
+@media (max-width: 720px) { .task-form { grid-template-columns: 1fr 1fr; } .task-form select[name="repeat"] { grid-column: 1 / -1; } }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -708,9 +717,9 @@ function sampleState() {
   const from = D.key(D.add(today, -30));
   s.tasks = [
     { id: uid(), name: 'Beber 2 litros de água', pillar: 'saude', days: [0, 1, 2, 3, 4, 5, 6], from },
-    { id: uid(), name: 'Anotar os gastos do dia', pillar: 'financeiro', days: [0, 1, 2, 3, 4, 5, 6], from },
-    { id: uid(), name: 'Ler antes de dormir', pillar: 'estudos', days: [0, 1, 2, 3, 4, 5, 6], from },
-    { id: uid(), name: 'Planejar o dia seguinte', pillar: 'emocional', days: [0, 1, 2, 3, 4], from },
+    { id: uid(), name: 'Anotar os gastos do dia', time: '20:00', pillar: 'financeiro', days: [0, 1, 2, 3, 4, 5, 6], from },
+    { id: uid(), name: 'Ler antes de dormir', time: '21:30', pillar: 'estudos', days: [0, 1, 2, 3, 4, 5, 6], from },
+    { id: uid(), name: 'Planejar o dia seguinte', time: '21:00', pillar: 'emocional', days: [0, 1, 2, 3, 4], from },
   ];
   for (let i = 30; i >= 1; i--) {
     const day = s.days[D.key(D.add(today, -i))];
@@ -718,7 +727,7 @@ function sampleState() {
     s.tasks.forEach(t => { if (r() < (i <= 2 ? 1 : 0.75)) day.done[t.id] = true; });
   }
   s.days[D.key(today)].done = { [s.tasks[0].id]: true, [s.tasks[1].id]: true };
-  s.days[D.key(today)].todos = [{ id: uid(), name: 'Pagar a conta de luz', pillar: 'financeiro', done: false }, { id: uid(), name: 'Marcar consulta no dentista', pillar: 'saude', done: true }];
+  s.days[D.key(today)].todos = [{ id: uid(), name: 'Pagar a conta de luz', time: '15:00', pillar: 'financeiro', done: false }, { id: uid(), name: 'Marcar consulta no dentista', time: '16:30', pillar: 'saude', done: true }];
   const mon = D.monday(today);
   const refl = [
     ['Semana leve, consegui manter os treinos.', 'Acordar sem pressa ajudou muito.', 'Dormir antes das 23h'],
@@ -774,7 +783,7 @@ function sampleState() {
     { id: uid(), name: 'Organizar o arquivo de documentos do setor', progress: 30, updatedAt: Date.now() - 10 * 864e5 },
     { id: uid(), name: 'Concluir curso de Excel intermediário', progress: 80, updatedAt: Date.now() - 4 * 864e5 },
   ];
-  s.tasks.push({ id: uid(), name: 'Conferir e-mails e agenda do setor', pillar: 'trabalho', days: [0, 1, 2, 3, 4], from });
+  s.tasks.push({ id: uid(), name: 'Conferir e-mails e agenda do setor', time: '13:40', pillar: 'trabalho', days: [0, 1, 2, 3, 4], from });
   const curCats = s.finance.months[cur].categories, m0 = D.addMonths(cur, -4);
   s.finance.categories.push('Compras');
   s.finance.budgets = {
@@ -1077,9 +1086,10 @@ const Calc = {
     const S = Store.state, wd = (D.parse(k).getDay() + 6) % 7, day = S.days[k] || {}, done = day.done || {};
     const keep = t => (work ? t.pillar === 'trabalho' : t.pillar !== 'trabalho');
     const rec = S.tasks.filter(t => keep(t) && (t.days || []).includes(wd) && (!t.from || t.from <= k))
-      .map(t => ({ id: t.id, name: t.name, pillar: t.pillar, rec: true, done: !!done[t.id] }));
-    const one = (day.todos || []).filter(keep).map(t => ({ ...t, rec: false }));
-    return [...rec, ...one];
+      .map(t => ({ id: t.id, name: t.name, pillar: t.pillar, rec: true, done: !!done[t.id], time: t.time || '' }));
+    const one = (day.todos || []).filter(keep).map(t => ({ ...t, rec: false, time: t.time || '' }));
+    /* com horário primeiro, do mais cedo ao mais tarde; sem horário depois, na ordem de sempre */
+    return [...rec, ...one].map((t, i) => ({ t, i })).sort((a, b) => (a.t.time && b.t.time) ? (a.t.time === b.t.time ? a.i - b.i : a.t.time < b.t.time ? -1 : 1) : a.t.time ? -1 : b.t.time ? 1 : a.i - b.i).map(x => x.t);
   },
   taskStats(k) { const t = Calc.tasksFor(k); return { total: t.length, done: t.filter(x => x.done).length }; },
   taskStreak() {
@@ -1211,11 +1221,23 @@ function toast(msg) {
 /* ---------------- Telas ---------------- */
 const Views = {};
 
+const nowHM = () => { const n = new Date(); return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; };
+const isLate = (t, date) => !t.done && !!t.time && (date < D.todayKey() || (date === D.todayKey() && t.time <= nowHM()));
+/* "próxima: X às 14:00 (em 25 min) · 1 atrasada", só para o dia de hoje */
+function nextUp(list, date) {
+  if (date !== D.todayKey()) return '';
+  const now = nowHM(), pend = list.filter(t => !t.done && t.time);
+  const late = pend.filter(t => t.time <= now).length, next = pend.find(t => t.time > now), parts = [];
+  if (next) parts.push(`próxima: ${next.name} às ${next.time} (em ${hmin(Calc.toMin(next.time) - Calc.toMin(now))})`);
+  if (late) parts.push(`${late} ${late === 1 ? 'atrasada' : 'atrasadas'}`);
+  return parts.join(' · ');
+}
 function taskRow(t, date, removeRec = false) {
-  const p = t.pillar ? pillar(t.pillar) : null;
+  const p = t.pillar ? pillar(t.pillar) : null, late = isLate(t, date);
   return `<div class="task ${t.done ? 'done' : ''}">
     <button class="check ${t.done ? 'on' : ''}" data-action="toggleTask" data-date="${date}" data-id="${t.id}" data-rec="${t.rec ? 1 : 0}" aria-pressed="${t.done}" aria-label="${t.done ? 'Desmarcar' : 'Marcar'}: ${esc(t.name)}">${icon('check')}</button>
     <span class="task-name">${esc(t.name)}</span>
+    <input class="time-in ${t.time ? 'has' : ''} ${late ? 'late' : ''}" type="time" value="${esc(t.time || '')}" data-change="taskTime" data-id="${t.id}" data-date="${date}" data-rec="${t.rec ? 1 : 0}" data-k="tt-${t.id}-${date}" aria-label="Horário de ${esc(t.name)}" title="${late ? 'Atrasada' : 'Horário (opcional)'}">
     ${p && !removeRec ? `<span class="tag">${esc(p.name)}</span>` : ''}
     ${t.rec ? `<span class="tag soft">rotina</span>${removeRec ? removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina') : ''}` : removeBtn(`data-list="todos" data-date="${date}" data-id="${t.id}"`, 'Remover tarefa')}
   </div>`;
@@ -1243,6 +1265,7 @@ Views.tarefas = () => {
 
   const routine = personal.length ? personal.map(t => `<div class="row routine-row">
       <div class="grow"><div class="row-title" style="font-weight:500">${esc(t.name)}</div>${t.pillar ? `<div class="row-sub">${esc(pillar(t.pillar).name)}</div>` : ''}</div>
+      <input class="time-in ${t.time ? 'has' : ''}" type="time" value="${esc(t.time || '')}" data-change="taskTime" data-id="${t.id}" data-rec="1" data-k="rt-${t.id}" aria-label="Horário de ${esc(t.name)}">
       <div class="wd" role="group" aria-label="Dias da semana de ${esc(t.name)}">${WEEKDAYS.map((w, i) => `<button class="${(t.days || []).includes(i) ? 'on' : ''}" data-action="toggleTaskDay" data-id="${t.id}" data-wd="${i}" aria-pressed="${(t.days || []).includes(i)}">${w}</button>`).join('')}</div>
       ${removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina')}
     </div>`).join('') : '<div class="empty">Nenhuma tarefa fixa. Ao adicionar uma tarefa, escolha "Todo dia" ou "Dias úteis" para ela se repetir.</div>';
@@ -1257,20 +1280,21 @@ Views.tarefas = () => {
     ${statCard({ label: 'Rotina fixa', value: personal.length, unit: personal.length === 1 ? 'tarefa' : 'tarefas' })}
   </div>
   <div class="grid g-21">
-    ${card({ title: k === tk ? 'Tarefas de hoje' : `Tarefas · ${dayName(k)}`, sub: list.length ? `${fin.length} de ${list.length} concluídas` : 'Nenhuma tarefa neste dia',
+    ${card({ title: k === tk ? 'Tarefas de hoje' : `Tarefas · ${dayName(k)}`, sub: list.length ? `${fin.length} de ${list.length} concluídas${nextUp(list, k) ? ` · ${nextUp(list, k)}` : ''}` : 'Nenhuma tarefa neste dia',
       body: `${list.length ? `<div style="margin-bottom:10px">${progress((fin.length / list.length) * 100, 'thick')}</div>` : ''}
         ${pend.map(t => taskRow(t, k)).join('')}
         ${fin.length ? `<div class="field-label" style="margin:14px 0 2px">Concluídas</div>${fin.map(t => taskRow(t, k)).join('')}` : ''}
         ${!list.length ? '<div class="empty">Adicione a primeira tarefa abaixo.</div>' : ''}
         <form class="task-form card-foot" data-submit="addTask">
-          <input class="input" name="name" placeholder="Nova tarefa (ex: beber 2L de água)" required maxlength="100" aria-label="Nova tarefa">
+          <input class="input" name="name" placeholder="Nova tarefa (ex: fazer o artigo)" required maxlength="100" aria-label="Nova tarefa">
+          <input class="input" name="time" type="time" aria-label="Horário (opcional)" title="Horário (opcional)">
           <select class="input" name="pillar" aria-label="Pilar">${options}</select>
           <select class="input" name="repeat" aria-label="Repetição"><option value="once">Só ${k === tk ? 'hoje' : 'neste dia'}</option><option value="daily">Todo dia</option><option value="weekdays">Dias úteis</option></select>
           <button class="btn" type="submit">${icon('plus')} Adicionar</button>
         </form>` })}
     ${card({ title: 'Últimos 7 dias', sub: '% das tarefas concluídas por dia', body: barChart({ items: last7, unit: '%', height: 170 }) })}
   </div>
-  ${card({ title: 'Rotina fixa', sub: 'Tarefas que se repetem. Toque nos dias para escolher quando cada uma aparece.', body: routine })}`;
+  ${card({ title: 'Rotina fixa', sub: 'Tarefas que se repetem. Escolha o horário e toque nos dias para dizer quando cada uma aparece.', body: routine })}`;
 };
 
 function overviewSeries(metric, period) {
@@ -1375,7 +1399,7 @@ Views.visao = () => {
   ${(() => {
     const tl = Calc.tasksFor(D.key(today)), td = tl.filter(t => t.done).length;
     const shown = [...tl.filter(t => !t.done), ...tl.filter(t => t.done)].slice(0, 6);
-    return `<div class="grid">${card({ title: 'Tarefas de hoje', sub: tl.length ? `${td} de ${tl.length} concluídas` : 'Nenhuma tarefa para hoje',
+    return `<div class="grid">${card({ title: 'Tarefas de hoje', sub: tl.length ? `${td} de ${tl.length} concluídas${nextUp(tl, D.key(today)) ? ` · ${nextUp(tl, D.key(today))}` : ''}` : 'Nenhuma tarefa para hoje',
       right: `<button class="btn ghost sm" data-nav="tarefas">${tl.length ? 'Ver todas' : 'Adicionar tarefas'}</button>`,
       body: tl.length ? `<div style="margin-bottom:6px">${progress((td / tl.length) * 100)}</div>${shown.map(t => taskRow(t, D.key(today))).join('')}${tl.length > 6 ? `<div class="row-meta">e mais ${tl.length - 6} em Tarefas</div>` : ''}`
         : '<div class="empty">Crie sua rotina em Tarefas: o que se repete aparece aqui todos os dias.</div>' })}</div>`;
@@ -2044,11 +2068,12 @@ Views.trabalho = () => {
       body: `<div class="kv"><span>${sh.startTxt}</span><b>${sh.state === 'during' ? `${Math.round(sh.pct)}% do ${what}` : sh.state === 'after' ? 'encerrado' : sh.state === 'before' ? 'ainda não começou' : 'folga'}</b><span>${sh.endTxt}</span></div>
         ${progress(sh.state === 'after' ? 100 : sh.state === 'during' ? sh.pct : 0, 'thick')}
         <div class="card-foot">
-          <div class="kv" style="margin-bottom:6px"><span class="card-title" style="font-size:14px">Rotina do trabalho</span><span class="small muted">só aparece aqui</span></div>
+          <div class="kv" style="margin-bottom:6px"><span class="card-title" style="font-size:14px">Rotina do trabalho</span><span class="small muted">${esc(nextUp(tl, tk) || 'só aparece aqui')}</span></div>
           ${tl.length ? tl.map(t => taskRow(t, tk, true)).join('') : '<div class="empty">Nenhuma tarefa de rotina para hoje. Ex: conferir a agenda do setor.</div>'}
           <form class="inline-form wrap-sm" data-submit="addTask" style="margin-top:12px">
             <input type="hidden" name="pillar" value="trabalho"><input type="hidden" name="day" value="${tk}">
             <input class="input" name="name" placeholder="Nova tarefa da rotina" required maxlength="100" aria-label="Nova tarefa da rotina do trabalho">
+            <input class="input" name="time" type="time" style="max-width:120px" aria-label="Horário (opcional)" title="Horário (opcional)">
             <select class="input" name="repeat" style="max-width:180px" aria-label="Repetição"><option value="once">Só hoje</option><option value="weekdays">Dias de expediente</option></select>
             <button class="btn" type="submit" aria-label="Adicionar tarefa">${icon('plus')}</button>
           </form>
@@ -2064,6 +2089,7 @@ Views.trabalho = () => {
           : '<div class="empty" style="padding:6px 0">Toque no dia do curso em "Ponto da semana" para anotar o que viu.</div>'}</div>` }) : ''}
     ${card({ title: 'Dias da rotina do trabalho', sub: 'Escolha em quais dias cada tarefa aparece (ex.: tire a quarta, dia de curso)',
       body: S.tasks.filter(t => t.pillar === 'trabalho').map(t => `<div class="row routine-row"><div class="grow"><div class="row-title" style="font-weight:500">${esc(t.name)}</div></div>
+        <input class="time-in ${t.time ? 'has' : ''}" type="time" value="${esc(t.time || '')}" data-change="taskTime" data-id="${t.id}" data-rec="1" data-k="rt-${t.id}" aria-label="Horário de ${esc(t.name)}">
         <div class="wd" role="group" aria-label="Dias de ${esc(t.name)}">${WEEKDAYS.map((x, i) => `<button class="${(t.days || []).includes(i) ? 'on' : ''}" data-action="toggleTaskDay" data-id="${t.id}" data-wd="${i}" aria-pressed="${(t.days || []).includes(i)}">${x}</button>`).join('')}</div>
         ${removeBtn(`data-list="tasks" data-id="${t.id}"`, 'Remover da rotina')}</div>`).join('') || '<div class="empty">Nenhuma tarefa de rotina do trabalho ainda. Adicione em "Expediente de hoje".</div>' })}
   </div>
@@ -2321,11 +2347,11 @@ const Actions = {
 };
 
 const Forms = {
-  addTask({ name, pillar: p, repeat, day }) {
+  addTask({ name, pillar: p, repeat, day, time }) {
     const n = name.trim(); if (!n) return false;
-    const k = day || UI.state.taskDay;
-    if (repeat === 'once') { const d = Store.day(k); d.todos = d.todos || []; d.todos.push({ id: uid(), name: n, pillar: p || '', done: false }); }
-    else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? (p === 'trabalho' ? Store.state.settings.work.days.slice() : [0, 1, 2, 3, 4]) : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey() });
+    const k = day || UI.state.taskDay, tm = /^\d{2}:\d{2}$/.test(time || '') ? { time } : {};
+    if (repeat === 'once') { const d = Store.day(k); d.todos = d.todos || []; d.todos.push({ id: uid(), name: n, pillar: p || '', done: false, ...tm }); }
+    else Store.state.tasks.push({ id: uid(), name: n, pillar: p || '', days: repeat === 'weekdays' ? (p === 'trabalho' ? Store.state.settings.work.days.slice() : [0, 1, 2, 3, 4]) : [0, 1, 2, 3, 4, 5, 6], from: k < D.todayKey() ? k : D.todayKey(), ...tm });
   },
   addDemand({ subject, from }) { Store.state.demands.push({ id: uid(), src: 'manual', from: (from || '').trim(), subject: subject.trim(), date: Date.now(), status: 'nova', seen: true }); },
   addWorkGoal({ name }) { Store.state.workGoals.push({ id: uid(), name: name.trim(), progress: 0, updatedAt: Date.now() }); },
@@ -2369,6 +2395,16 @@ const Forms = {
 };
 
 const Changes = {
+  /* Horário de uma tarefa. Na rotina vale para todos os dias; numa avulsa, só para ela. */
+  taskTime(v, { id, date, rec }, el) {
+    const tm = /^\d{2}:\d{2}$/.test(v) ? v : '';
+    const x = rec === '1' ? Store.state.tasks.find(y => y.id === id) : (Store.day(date).todos || []).find(y => y.id === id);
+    if (!x) return false;
+    if (tm) x.time = tm; else delete x.time;
+    if (el) { el.classList.toggle('has', !!tm); el.classList.remove('late'); }
+    UI.renderOnBlur = true; // reordena e recalcula "atrasada" quando sair do campo
+    return 'silent';
+  },
   budget(v, { name }) { const n = Math.max(0, Math.round(+v || 0)), B = Store.state.finance.budgets; if (n) B[name] = n; else delete B[name]; },
   focusBook(v) { UI.state.focusBook = v; },
   wishPages(v, { id }) { const w = Store.state.wishlist.find(x => x.id === id); if (w) w.total = Math.max(0, Math.round(+v || 0)); },
@@ -2448,7 +2484,9 @@ document.addEventListener('submit', e => {
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-change]'); if (!el) return;
   const fn = Changes[el.dataset.change]; if (!fn) return;
-  if (fn(el.value, el.dataset, el) === false) { render(); return; }
+  const res = fn(el.value, el.dataset, el);
+  if (res === false) { render(); return; }
+  if (res === 'silent') { Store.fresh = false; Sync.push(); return; }
   commit();
 });
 document.addEventListener('input', e => {
@@ -2461,7 +2499,7 @@ window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); }
 render();
 boot();
 /* Atualiza o relógio do expediente a cada minuto */
-setInterval(() => { if (Store.mode !== 'loading' && !UI.modal && ['trabalho', 'visao'].includes(route())) safeRender(); }, 60000);
+setInterval(() => { if (Store.mode !== 'loading' && !UI.modal && ['trabalho', 'visao', 'tarefas'].includes(route())) safeRender(); }, 60000);
 if (window.claude && typeof window.claude.use === 'function') {
   window.claude.use('assets').then(a => { UI.assets = a; UI.canUpload = !!a; if (Store.mode !== 'loading') safeRender(); }).catch(() => {});
 }

@@ -20,7 +20,7 @@ mas aí os dados ficam salvos só naquele navegador.
 
 | Pilar | O que acompanha |
 |---|---|
-| Tarefas | Tarefas pessoais do dia para marcar (o trabalho fica separado, no módulo Trabalho): rotina fixa (todo dia, dias úteis ou dias escolhidos) e tarefas avulsas de um dia; sequência de dias com tudo feito e % dos últimos 7 dias |
+| Tarefas | Tarefas pessoais do dia para marcar, cada uma com horário opcional (ordenadas por horário, com aviso de atrasada e "próxima") (o trabalho fica separado, no módulo Trabalho): rotina fixa (todo dia, dias úteis ou dias escolhidos) e tarefas avulsas de um dia; sequência de dias com tudo feito e % dos últimos 7 dias |
 | Visão geral | Resumo do dia preparado às 5h (demandas do e-mail + o que está no painel), tarefas de hoje, pilares em dia, saldo do mês, páginas e treinos da semana, gráfico de evolução, calendário e tabela de status |
 | 01 · Financeiro | Fatura do mês (o arquivo fica guardado), receita x despesas, gastos por categoria com limite e aviso a partir de 80%, gastos fixos e parcelas com o total comprometido nos próximos 6 meses, metas com aportes em R$ |
 | 02 · Estudos | Cronômetro de foco (25, 45, 60 min ou livre) com registro de tempo por livro e meta diária, anotações e frases de cada livro, lista "quero ler", meta de páginas por dia, sequência, últimos 14 dias e livros com previsão de término |
@@ -89,3 +89,10 @@ escolher os dias de expediente, os dias de curso (um dia não fica nos dois), o 
 dia pode ser marcado como Trabalhei, Curso, Folga ou Falta. O curso conta nas horas da semana, aparece como "Curso de hoje" com
 contagem regressiva, tem anotações por dia (`days[data].courseNote`) e a rotina do trabalho tem os dias editáveis (por exemplo, tirar a quarta).
 Dados antigos (expediente de seg a sex, sem curso) são migrados sozinhos: a quarta passa a ser dia de curso.
+
+## Horário nas tarefas
+
+Cada tarefa (da rotina, avulsa ou do trabalho) pode ter um horário opcional (`time`, "HH:MM"), definido ao criar ou editado no campo de hora
+da própria linha. Na rotina o horário vale para todos os dias; numa avulsa vale só para ela. As tarefas do dia ficam ordenadas por horário
+(sem horário vêm depois), o horário fica vermelho quando passa e a tarefa ainda não foi feita, e o cartão mostra "próxima: ... (em 25 min)".
+O painel não envia notificação no horário: o aviso é visual, enquanto o painel está aberto, e o resumo das 5h cita os horários do dia.
