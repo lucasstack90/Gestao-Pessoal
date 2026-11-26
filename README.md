@@ -109,3 +109,10 @@ Escolhi, a partir de uma pesquisa na web, os métodos que cabem no painel:
 - **Programar em outros dias**: ao criar, marque "Também em:" (próximos 6 dias); numa tarefa avulsa, o botão de calendário copia ou move para outros dias.
 
 Ficaram de fora por enquanto: matriz de Eisenhower (importante x urgente), caixa de entrada GTD, dia temático e agrupamento de tarefas parecidas.
+
+## Foto de perfil
+
+No canto superior direito de todas as telas fica o **avatar** (a foto, ou as iniciais do nome quando não há foto). Ao tocar, abre o perfil: escolher ou trocar a
+foto (no celular o sistema oferece câmera ou galeria), enquadrar arrastando e aproximando, salvar, remover e editar o nome. A foto é redimensionada
+para 256x256 (JPEG, cerca de 10 a 40 KB) e fica no documento `photo` do banco, então aparece igual no celular e no computador. O painel só aceita `data:image`
+e ignora qualquer outro valor nesse documento. "Carregar exemplo" e "Apagar tudo" não removem a foto.

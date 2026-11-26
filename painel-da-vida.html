@@ -681,6 +681,26 @@ a.link { color: var(--accent-ink); }
   .task .time-in { margin-left: 38px; }
 }
 
+/* ---------- Foto de perfil ---------- */
+.avatar { width: 40px; height: 40px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; flex: none; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; font-size: 14px; display: grid; place-items: center; overflow: hidden; box-shadow: 0 0 0 2px var(--card), 0 4px 14px var(--accent-glow); transition: transform .15s; }
+.avatar:hover { transform: scale(1.05); }
+.avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar .ic { width: 20px; height: 20px; }
+.avatar.lg { width: 112px; height: 112px; font-size: 38px; cursor: default; }
+.avatar.lg:hover { transform: none; }
+.avatar.lg .ic { width: 44px; height: 44px; }
+.modal.profile { max-width: 420px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.profile-head { display: flex; justify-content: space-between; align-items: center; }
+.profile-view { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.profile-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.profile-btns label.btn { cursor: pointer; }
+.file-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.crop { width: 240px; height: 240px; max-width: 100%; border-radius: 50%; overflow: hidden; touch-action: none; cursor: grab; background: var(--soft); box-shadow: 0 0 0 3px var(--accent), 0 8px 30px var(--accent-glow); }
+.crop.grab { cursor: grabbing; }
+.crop canvas { width: 100%; height: 100%; display: block; }
+#p-zoom { width: 100%; max-width: 280px; accent-color: var(--accent); }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -726,6 +746,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 function defaultState() {
   return {
     sample: false,
+    photo: '',     // foto de perfil (data URL já redimensionada)
     settings: { name: '', trainGoal: 5, sleepGoal: 8, pagesGoal: 15, focusGoal: 60, habitName: 'Caminhada de 20 min',
       work: { company: 'Gerar', role: 'Auxiliar administrativo', start: '13:30', end: '17:30', days: [0, 1, 3, 4], courseDays: [2], courseStart: '13:30', courseEnd: '17:30', courseName: 'Curso do trabalho', gmailOn: false, gmailDomain: 'gerar.org.br', gmailSince: 0, gmailV: 0 } },
     days: {},   // 'AAAA-MM-DD' -> { trained, sleep, energy, pages, habit }
@@ -890,6 +911,7 @@ function normalize(raw) {
   if (!s.finance.months || typeof s.finance.months !== 'object') s.finance.months = {};
   if (!Array.isArray(s.finance.goals)) s.finance.goals = [];
   if (!Array.isArray(s.finance.categories)) s.finance.categories = [];
+  if (typeof s.photo !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(s.photo)) s.photo = '';
   if (!s.finance.budgets || typeof s.finance.budgets !== 'object' || Array.isArray(s.finance.budgets)) s.finance.budgets = {};
   ['fixed', 'installments'].forEach(k => { if (!Array.isArray(s.finance[k])) s.finance[k] = []; });
   return s;
@@ -905,13 +927,14 @@ function toDocs(s) {
   Object.entries(s.weeks).forEach(([k, v]) => { const id = 'w-' + k.slice(0, 4); (docs[id] = docs[id] || { weeks: {} }).weeks[k] = v; });
   Object.entries(s.finance.months).forEach(([k, v]) => { docs['f-' + k] = v; });
   if (s.demands.length) docs.demands = { items: s.demands.slice(-300) };
+  if (s.photo) docs.photo = { v: 1, url: s.photo };
   const nb = {}; s.notes.forEach(n => { (nb[n.book] = nb[n.book] || []).push(n); });
   Object.entries(nb).forEach(([b, items]) => { docs['n-' + b] = { items }; });
   return docs;
 }
 function fromDocs(docs) {
   const c = docs.config || {};
-  const s = normalize({ demands: (docs.demands || {}).items, sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, workGoals: c.workGoals, wishlist: c.wishlist, finance: { categories: c.categories, goals: c.goals, months: {}, budgets: c.budgets, fixed: c.fixed, installments: c.installments } });
+  const s = normalize({ photo: (docs.photo || {}).url, demands: (docs.demands || {}).items, sample: c.sample, settings: c.settings, records: c.records, books: c.books, tasks: c.tasks, workGoals: c.workGoals, wishlist: c.wishlist, finance: { categories: c.categories, goals: c.goals, months: {}, budgets: c.budgets, fixed: c.fixed, installments: c.installments } });
   Object.entries(docs).forEach(([id, d]) => {
     if (id.startsWith('d-')) Object.assign(s.days, d.days || {});
     else if (id.startsWith('w-')) Object.assign(s.weeks, d.weeks || {});
@@ -995,7 +1018,7 @@ async function boot() {
 
   Sync.col = db.collection('data/users/' + id);
   const timer = setTimeout(() => { if (Store.mode === 'loading') { Store.loadNote = 'O banco do Claude ainda não respondeu. Confira a conexão; o painel abre assim que os dados chegarem.'; render(); } }, 10000);
-  const managed = id => id === 'config' || id === 'demands' || /^[dwfn]-/.test(id);
+  const managed = id => id === 'config' || id === 'demands' || id === 'photo' || /^[dwfn]-/.test(id);
   Sync.col.onSnapshot(snap => {
     const docs = {}, json = {};
     let brief = null;
@@ -2264,7 +2287,7 @@ function render() {
     $main.innerHTML = `<div class="loading"><div class="card"><div class="card-title">Abrindo seu painel…</div><p class="desc" style="margin-top:8px">${esc(Store.loadNote || 'Buscando seus dados salvos no Claude.')}</p></div></div>`;
     return;
   }
-  let top = `<div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">${Focus.t ? `<a class="focus-chip" href="#estudos">${icon('timer')}<span id="focus-mini">${fmtClock(Focus.target() ? Focus.target() * 60000 - Focus.elapsed() : Focus.elapsed())}</span> em foco</a>` : ''}${syncBadge()}</div>`;
+  let top = `<div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">${Focus.t ? `<a class="focus-chip" href="#estudos">${icon('timer')}<span id="focus-mini">${fmtClock(Focus.target() ? Focus.target() * 60000 - Focus.elapsed() : Focus.elapsed())}</span> em foco</a>` : ''}${syncBadge()}<button class="avatar" type="button" data-profile aria-label="Meu perfil" title="Meu perfil">${avatarHtml()}</button></div>`;
   const fresh = Store.state.demands.filter(d => !d.seen);
   if (fresh.length && r !== 'trabalho') { const last = fresh.reduce((a, b) => (b.date > a.date ? b : a)); top += `<div class="alert" role="status">${icon('mail')}<span><b>${fresh.length === 1 ? 'Nova demanda' : `${fresh.length} novas demandas`}</b> de ${esc(last.from || 'trabalho')}: ${esc(last.subject)}</span><button class="btn sm" data-nav="trabalho">Ver</button></div>`; }
   const ba = r === 'visao' || r === 'financeiro' ? Calc.budgetAlerts() : [];
@@ -2294,6 +2317,103 @@ function ask(msg, yes, fn, danger = false) {
   const b = $modal.querySelector('[data-modal="yes"]'); if (b) b.focus();
 }
 function closeModal() { UI.modal = null; $modal.hidden = true; $modal.innerHTML = ''; }
+
+/* ---------------- Perfil: foto no canto, como nos apps de banco ---------------- */
+function initialsOf(name) {
+  const p = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return p.length ? (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() : '';
+}
+function avatarHtml() {
+  const S = Store.state;
+  if (S && S.photo) return `<img src="${esc(S.photo)}" alt="">`;
+  const i = S ? initialsOf(S.settings.name) : '';
+  return i ? esc(i) : icon('user');
+}
+const Profile = {
+  el: null, img: null, zoom: 1, ox: 0, oy: 0, drag: null, SIZE: 240, onKey: null,
+  open() {
+    if (this.el) return;
+    this.img = null;
+    const el = this.el = document.createElement('div');
+    el.className = 'modal-back';
+    el.innerHTML = `<div class="modal profile" role="dialog" aria-modal="true" aria-label="Meu perfil">
+      <div class="profile-head"><div class="card-title">Meu perfil</div><button class="icon-btn plain" type="button" data-p="close" aria-label="Fechar">${icon('x')}</button></div>
+      <div class="profile-view" id="p-view"></div>
+      <div class="field"><label for="p-name">Seu nome</label><input id="p-name" class="input" maxlength="40" placeholder="Como quer ser chamado" value="${esc(Store.state.settings.name || '')}"></div>
+      <div class="actions"><button class="btn" type="button" data-p="close">Pronto</button></div></div>`;
+    document.body.appendChild(el);
+    this.refresh();
+    el.addEventListener('click', e => {
+      if (e.target === el) { this.close(); return; }
+      const b = e.target.closest('[data-p]'); if (!b) return;
+      const a = b.dataset.p;
+      if (a === 'close') this.close();
+      else if (a === 'cancel') { this.img = null; this.refresh(); }
+      else if (a === 'save') this.save();
+      else if (a === 'remove') { Store.state.photo = ''; commit(); this.refresh(); toast('Foto removida'); }
+    });
+    el.addEventListener('change', e => {
+      if (e.target.id === 'p-file') this.load(e.target.files && e.target.files[0]);
+      else if (e.target.id === 'p-name') { Store.state.settings.name = e.target.value.trim(); commit(); this.refresh(); }
+    });
+    el.addEventListener('input', e => { if (e.target.id === 'p-zoom') { this.zoom = +e.target.value; this.fit(); this.draw(); } });
+    el.addEventListener('pointerdown', e => {
+      const c = e.target.closest('#p-crop'); if (!c || !this.img) return;
+      this.drag = { x: e.clientX, y: e.clientY, ox: this.ox, oy: this.oy, k: this.SIZE / c.getBoundingClientRect().width };
+      c.setPointerCapture(e.pointerId); c.classList.add('grab');
+    });
+    el.addEventListener('pointermove', e => {
+      if (!this.drag) return;
+      this.ox = this.drag.ox + (e.clientX - this.drag.x) * this.drag.k;
+      this.oy = this.drag.oy + (e.clientY - this.drag.y) * this.drag.k;
+      this.fit(); this.draw();
+    });
+    const end = () => { this.drag = null; const c = el.querySelector('#p-crop'); if (c) c.classList.remove('grab'); };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+    this.onKey = e => { if (e.key === 'Escape') this.close(); };
+    document.addEventListener('keydown', this.onKey);
+  },
+  close() {
+    if (!this.el) return;
+    document.removeEventListener('keydown', this.onKey);
+    this.el.remove(); this.el = null; this.img = null; this.drag = null;
+  },
+  viewHtml() {
+    const S = Store.state;
+    if (this.img) return `<div class="crop" id="p-crop"><canvas id="p-canvas" width="${this.SIZE}" height="${this.SIZE}"></canvas></div>
+      <input type="range" id="p-zoom" min="1" max="3" step="0.01" value="${this.zoom}" aria-label="Aproximar">
+      <div class="small muted" style="text-align:center">Arraste para enquadrar e use o controle para aproximar.</div>
+      <div class="profile-btns"><button class="btn" type="button" data-p="save">Salvar foto</button><button class="btn ghost" type="button" data-p="cancel">Cancelar</button></div>`;
+    return `<div class="avatar lg">${avatarHtml()}</div>
+      <div class="profile-btns"><label class="btn" for="p-file">${icon('upload')} ${S.photo ? 'Trocar foto' : 'Escolher foto'}</label><input id="p-file" class="file-hidden" type="file" accept="image/*">${S.photo ? '<button class="btn ghost" type="button" data-p="remove">Remover foto</button>' : ''}</div>`;
+  },
+  refresh() { this.el.querySelector('#p-view').innerHTML = this.viewHtml(); this.draw(); },
+  load(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { toast('Escolha um arquivo de imagem.'); return; }
+    if (file.size > 15 * 1024 * 1024) { toast('A imagem é grande demais. Escolha uma de até 15 MB.'); return; }
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); this.img = img; this.zoom = 1; this.ox = 0; this.oy = 0; if (this.el) this.refresh(); };
+    img.onerror = () => { URL.revokeObjectURL(url); toast('Não consegui abrir essa imagem. Tente um JPG ou PNG.'); };
+    img.src = url;
+  },
+  size(size) { const iw = this.img.naturalWidth, ih = this.img.naturalHeight, base = Math.max(size / iw, size / ih) * this.zoom; return { w: iw * base, h: ih * base }; },
+  fit() { const { w, h } = this.size(this.SIZE), mx = Math.max(0, (w - this.SIZE) / 2), my = Math.max(0, (h - this.SIZE) / 2); this.ox = clamp(this.ox, -mx, mx); this.oy = clamp(this.oy, -my, my); },
+  paint(ctx, size) { const { w, h } = this.size(size), k = size / this.SIZE; ctx.drawImage(this.img, (size - w) / 2 + this.ox * k, (size - h) / 2 + this.oy * k, w, h); },
+  draw() {
+    const c = this.el && this.el.querySelector('#p-canvas'); if (!c || !this.img) return;
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, this.SIZE, this.SIZE); this.paint(ctx, this.SIZE);
+  },
+  save() {
+    if (!this.img) return;
+    const out = document.createElement('canvas'); out.width = out.height = 256;
+    const ctx = out.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 256, 256); this.paint(ctx, 256);
+    let q = 0.86, url = out.toDataURL('image/jpeg', q);
+    while (url.length > 90000 && q > 0.5) { q -= 0.1; url = out.toDataURL('image/jpeg', q); }
+    Store.state.photo = url; this.img = null;
+    commit(); toast('Foto atualizada'); this.refresh();
+  },
+};
 
 /* ---------------- Ações ---------------- */
 const Actions = {
@@ -2435,15 +2555,15 @@ const Actions = {
     return false;
   },
   loadSample() {
-    ask('Substituir os dados atuais pelos dados de exemplo?', 'Carregar exemplo', () => { Store.state = sampleState(); commit(); toast('Dados de exemplo carregados'); });
+    ask('Substituir os dados atuais pelos dados de exemplo?', 'Carregar exemplo', () => { const ph = Store.state.photo; Store.state = sampleState(); Store.state.photo = ph; commit(); toast('Dados de exemplo carregados'); });
     return false;
   },
   clearAll() {
-    ask('Apagar todos os dados do painel? Isso não pode ser desfeito.', 'Apagar tudo', () => { Store.state = defaultState(); commit(); toast('Painel zerado'); }, true);
+    ask('Apagar todos os dados do painel? Isso não pode ser desfeito.', 'Apagar tudo', () => { const ph = Store.state.photo; Store.state = defaultState(); Store.state.photo = ph; commit(); toast('Painel zerado'); }, true);
     return false;
   },
   clearSample() {
-    ask('Apagar os dados de exemplo e começar com um painel vazio?', 'Começar do zero', () => { Store.state = defaultState(); Store.fresh = true; Sync.push(); location.hash = 'config'; render(); toast('Painel pronto. Comece pelas suas metas.'); });
+    ask('Apagar os dados de exemplo e começar com um painel vazio?', 'Começar do zero', () => { const ph = Store.state.photo; Store.state = defaultState(); Store.state.photo = ph; Store.fresh = true; Sync.push(); location.hash = 'config'; render(); toast('Painel pronto. Comece pelas suas metas.'); });
     return false;
   },
 };
@@ -2566,6 +2686,7 @@ document.addEventListener('click', e => {
     closeModal(); if (fn) fn();
     return;
   }
+  if (e.target.closest('[data-profile]')) { Profile.open(); return; }
   const nav = e.target.closest('[data-nav]');
   if (nav) { e.preventDefault(); location.hash = nav.dataset.nav; return; }
   const el = e.target.closest('[data-action]');
