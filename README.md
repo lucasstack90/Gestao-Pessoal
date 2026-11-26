@@ -116,3 +116,12 @@ No canto superior direito de todas as telas fica o **avatar** (a foto, ou as ini
 foto (no celular o sistema oferece câmera ou galeria), enquadrar arrastando e aproximando, salvar, remover e editar o nome. A foto é redimensionada
 para 256x256 (JPEG, cerca de 10 a 40 KB) e fica no documento `photo` do banco, então aparece igual no celular e no computador. O painel só aceita `data:image`
 e ignora qualquer outro valor nesse documento. "Carregar exemplo" e "Apagar tudo" não removem a foto.
+
+## Resumo em áudio
+
+O cartão "Resumo do dia" saiu da Visão geral. Agora há um botão **Resumo** no topo (ao lado da foto, com um pontinho quando há resumo novo). Ele abre um painel com o texto completo e o botão **Ouvir o resumo**.
+
+- Controles: ouvir, pausar, continuar, parar; velocidade 0,9× / 1× / 1,25×; escolha de voz (voz do Claude, quando disponível). Velocidade e voz ficam salvas no aparelho.
+- A leitura é um roteiro em português natural ("Bom dia, Lucas…", horas e valores falados por extenso). Fechar o painel não interrompe a leitura; o botão do topo mostra que ela está tocando.
+- Voz do Claude (capacidade `tts`) funciona em Chrome/Edge no desktop. Em Safari, Firefox e apps móveis do Claude usa-se a voz do navegador; se nem isso existir, o texto continua na tela.
+- Não toca sozinho: o navegador exige um toque para começar.

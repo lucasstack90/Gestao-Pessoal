@@ -701,6 +701,23 @@ a.link { color: var(--accent-ink); }
 .crop canvas { width: 100%; height: 100%; display: block; }
 #p-zoom { width: 100%; max-width: 280px; accent-color: var(--accent); }
 
+/* ---------- Resumo do dia em áudio ---------- */
+.top-btn { position: relative; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 99px; padding: 8px 14px 8px 12px; background: var(--accent-soft); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+.top-btn:hover { background: var(--hover); }
+.top-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.top-btn .ic { width: 17px; height: 17px; }
+.top-btn .eq { display: none; gap: 2px; align-items: flex-end; height: 14px; }
+.top-btn.speaking .eq { display: inline-flex; }
+.top-btn.speaking > .ic { display: none; }
+.eq i { width: 3px; height: 40%; background: currentColor; border-radius: 2px; animation: eqbar .9s ease-in-out infinite; }
+.eq i:nth-child(2) { animation-delay: .2s; }
+.eq i:nth-child(3) { animation-delay: .4s; }
+@keyframes eqbar { 50% { height: 100%; } }
+.dot-new { position: absolute; top: 2px; right: 3px; width: 10px; height: 10px; border-radius: 50%; background: var(--down); box-shadow: 0 0 0 2px var(--app); }
+.modal.brief-panel { max-width: 600px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.audio-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.brief-panel .brief-head { margin-top: 2px; }
+
 </style>
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
@@ -1229,6 +1246,8 @@ const ICONS = {
   stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
   alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   star: '<polygon points="12 2 15.1 8.6 22 9.3 16.8 14 18.2 21 12 17.5 5.8 21 7.2 14 2 9.3 8.9 8.6 12 2"/>',
+  speaker: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>',
+  pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
   list: '<rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 9"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1413,39 +1432,198 @@ function overviewSeries(metric, period) {
 }
 
 const BRIEF_SRC = { email: 'E-mail', trabalho: 'Trabalho', tarefa: 'Tarefa', estudos: 'Estudos', financeiro: 'Financeiro', saude: 'Saúde', emocional: 'Emocional' };
-function briefCard() {
-  const B = Store.brief;
-  if (Store.mode !== 'cloud') return '';
-  if (!B || !B.date) return card({ cls: 'brief', title: 'Resumo do dia', sub: 'Chega todo dia de manhã',
-    body: '<div class="empty">Ainda não há resumo. Todo dia às 5h o Claude confere seu e-mail e o painel e deixa aqui o que você precisa fazer.</div>' });
-  const today = B.date === D.todayKey(), when = /^\d{4}-\d{2}-\d{2}$/.test(B.date) ? D.parse(B.date) : D.today();
+/* Corpo do resumo (texto). Aparece no painel "Resumo do dia", aberto pelo botão do topo. */
+function briefBodyHtml(B) {
   const txt = (v, n) => esc(String(v || '').slice(0, n));
   const ok = u => typeof u === 'string' && /^https:\/\/mail\.google\.com\//.test(u);
   const prios = (Array.isArray(B.priorities) ? B.priorities : []).slice(0, 10).map((p, i) => `<div class="brief-item">
       <span class="brief-n">${i + 1}</span>
       <div class="grow"><div class="row-title">${txt(p.title, 140)}</div>${p.detail ? `<div class="row-sub">${txt(p.detail, 280)}</div>` : ''}</div>
       ${BRIEF_SRC[p.source] ? `<span class="tag">${BRIEF_SRC[p.source]}</span>` : ''}
-      ${ROUTES.includes(p.go) ? `<button class="btn ghost sm" data-nav="${p.go}">Abrir</button>` : ''}
+      ${ROUTES.includes(p.go) ? `<button class="btn ghost sm" type="button" data-nav="${p.go}">Abrir</button>` : ''}
     </div>`).join('');
   const mails = (Array.isArray(B.emails) ? B.emails : []).slice(0, 8).map(m => `<div class="brief-item">
       <span class="dem-src">${icon('mail')}</span>
       <div class="grow"><div class="row-title">${txt(m.subject, 140)}</div>
         <div class="row-sub">${txt(m.from, 80)}${m.attach ? ` · ${icon('clip', 'mini')} anexo` : ''}</div>
         ${m.ask ? `<div class="brief-ask">${txt(m.ask, 320)}</div>` : ''}</div>
-      ${ok(m.url) ? `<a class="btn ghost sm" href="${esc(m.url)}" target="_blank" rel="noopener" data-action="noop">Abrir</a>` : ''}
+      ${ok(m.url) ? `<a class="btn ghost sm" href="${esc(m.url)}" target="_blank" rel="noopener">Abrir</a>` : ''}
     </div>`).join('');
   const watch = (Array.isArray(B.watch) ? B.watch : []).slice(0, 6).map(w => `<li>${txt(w, 220)}</li>`).join('');
-  return card({
-    cls: 'brief',
-    title: today ? 'Resumo do dia' : `Resumo de ${longDate(when)}`,
-    sub: today ? `${longDate(when)} · gerado às ${B.generatedAt ? clockHM(B.generatedAt) : '5h'}` : 'O de hoje chega às 5h',
-    right: today ? '' : '<span class="badge light">desatualizado</span>',
-    body: `${B.headline ? `<div class="brief-head">${txt(B.headline, 160)}</div>` : ''}
-      ${B.summary ? `<p class="brief-sum">${txt(B.summary, 600)}</p>` : ''}
-      ${prios ? `<div class="brief-sec">O que fazer hoje</div>${prios}` : ''}
-      ${mails ? `<div class="brief-sec">Demandas do e-mail</div>${mails}` : ''}
-      ${watch ? `<div class="brief-sec">Atenção</div><ul class="brief-watch">${watch}</ul>` : ''}` });
+  return `${B.headline ? `<div class="brief-head">${txt(B.headline, 160)}</div>` : ''}
+    ${B.summary ? `<p class="brief-sum">${txt(B.summary, 600)}</p>` : ''}
+    ${prios ? `<div class="brief-sec">O que fazer hoje</div>${prios}` : ''}
+    ${mails ? `<div class="brief-sec">Demandas do e-mail</div>${mails}` : ''}
+    ${watch ? `<div class="brief-sec">Atenção</div><ul class="brief-watch">${watch}</ul>` : ''}`;
 }
+
+/* ---------------- Resumo do dia em áudio ---------------- */
+const VOICE_KEY = 'painel-vida:voice';
+const ORD = ['Primeiro', 'Segundo', 'Terceiro', 'Quarto', 'Quinto', 'Sexto', 'Sétimo', 'Oitavo', 'Nono', 'Décimo'];
+/* Ajusta o texto para soar natural em português: horas, dinheiro e porcentagem */
+function spokenText(s) {
+  return String(s || '')
+    .replace(/R\$\s?(\d[\d.]*)(?:,(\d{2}))?/g, (m, a, c) => `${a.replace(/\./g, '')}${c ? ` e ${+c} centavos` : ''} reais`)
+    .replace(/(\d+)\s?%/g, '$1 por cento')
+    .replace(/\b(\d{1,2}):00\b/g, (m, h) => `${+h} ${+h === 1 ? 'hora' : 'horas'}`)
+    .replace(/\b(\d{1,2}):(\d{2})\b/g, (m, h, mi) => `${+h} e ${+mi}`)
+    .replace(/[★☆●○•]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function packLines(parts, max = 1700) {
+  const out = []; let cur = '';
+  parts.forEach(p => { if (cur && (cur + ' ' + p).length > max) { out.push(cur); cur = p; } else cur = cur ? `${cur} ${p}` : p; });
+  if (cur) out.push(cur);
+  return out;
+}
+function briefScript(B) {
+  const S = Store.state, h = new Date().getHours(), first = (S.settings.name || '').trim().split(/\s+/)[0];
+  const hi = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(B.date || ''), same = validDate && B.date === D.todayKey();
+  const lines = [`${hi}${first ? `, ${first}` : ''}. ${same ? `Este é o seu resumo de ${longDate(D.today())}.` : validDate ? `Atenção: este resumo é de ${longDate(D.parse(B.date))}, não é de hoje.` : 'Este é o seu último resumo.'}`];
+  if (B.headline) lines.push(B.headline);
+  if (B.summary) lines.push(B.summary);
+  const pr = (Array.isArray(B.priorities) ? B.priorities : []).slice(0, 10).map((p, i) => `${ORD[i]}: ${p.title}.${p.detail ? ` ${p.detail}` : ''}`);
+  if (pr.length) lines.push(...packLines(['O que fazer hoje.', ...pr]));
+  const em = (Array.isArray(B.emails) ? B.emails : []).slice(0, 8).map(m => `De ${m.from || 'remetente desconhecido'}: ${m.subject || 'sem assunto'}.${m.ask ? ` ${m.ask}` : ''}`);
+  if (em.length) lines.push(...packLines(['Demandas do e-mail.', ...em]));
+  const wt = (Array.isArray(B.watch) ? B.watch : []).slice(0, 6);
+  if (wt.length) lines.push(...packLines(['Atenção.', ...wt.map(w => (/[.!?]$/.test(w) ? w : `${w}.`))]));
+  lines.push('Esse foi o resumo do dia.');
+  return lines.map(spokenText).filter(Boolean).map(t => t.slice(0, 1900));
+}
+const VOICE_NAMES = { buttery: 'Voz 1', airy: 'Voz 2', glassy: 'Voz 3', rounded: 'Voz 4' };
+
+/* Voz do Claude quando existe (não há no Safari, no Firefox nem nos apps de celular); senão, a voz do navegador */
+const Voice = {
+  cloud: null, voices: [], state: 'idle', cancelled: false, prefs: { rate: 1, voice: 'buttery' },
+  async init() {
+    try { const raw = localStorage.getItem(VOICE_KEY); if (raw) Object.assign(this.prefs, JSON.parse(raw)); } catch (e) { /* sem armazenamento */ }
+    try { this.cloud = window.claude && window.claude.use ? await window.claude.use('tts') : null; } catch (e) { this.cloud = null; }
+    if (this.cloud) {
+      try { this.voices = await this.cloud.voices(); } catch (e) { this.voices = []; }
+      try { if (this.cloud.setRate) this.cloud.setRate(this.prefs.rate); } catch (e) { /* mantém o ritmo */ }
+      this.cloud.onState(({ state }) => this.set(state === 'starting' ? 'speaking' : state));
+    }
+    Brief.controls();
+  },
+  engine() { return this.cloud ? 'cloud' : (window.speechSynthesis && window.SpeechSynthesisUtterance ? 'browser' : 'none'); },
+  set(st) {
+    this.state = st; Brief.controls();
+    const b = document.querySelector('[data-brief]'); if (b) b.classList.toggle('speaking', st === 'speaking' || st === 'paused');
+  },
+  save() { try { localStorage.setItem(VOICE_KEY, JSON.stringify(this.prefs)); } catch (e) { /* sem armazenamento */ } },
+  setRate(r) { this.prefs.rate = r; this.save(); if (this.cloud && this.cloud.setRate) { try { this.cloud.setRate(r); } catch (e) { /* mantém */ } } Brief.controls(); },
+  setVoice(v) { this.prefs.voice = v; this.save(); },
+  async play() {
+    const B = Store.brief; if (!B) return;
+    const lines = briefScript(B); if (!lines.length) return;
+    const eng = this.engine();
+    if (eng === 'cloud') {
+      try {
+        this.set('speaking');
+        await this.cloud.speak(lines.map((text, i) => ({ text, id: `l${i}`, language: 'pt-BR' })), { voice: this.prefs.voice, rate: this.prefs.rate, language: 'pt-BR' });
+      } catch (e) { this.fail(e); }
+    } else if (eng === 'browser') this.playBrowser(lines);
+    else toast('Este navegador não lê em voz alta aqui. O texto está na tela.');
+  },
+  fail(e) {
+    const c = e && e.code;
+    if (c === 'stopped') return;
+    this.set('idle');
+    toast({ no_gesture: 'Toque em "Ouvir o resumo" de novo.', busy: 'O Claude está usando o microfone agora. Tente em instantes.', rate_limited: 'Muitas leituras seguidas. Tente de novo em alguns minutos.', not_granted: 'A leitura em voz alta está desligada para este painel (menu Permissões do artefato).', unavailable: 'A leitura em voz alta não está disponível agora.' }[c] || 'Não consegui ler o resumo agora. Tente de novo.');
+  },
+  playBrowser(lines) {
+    const synth = window.speechSynthesis;
+    try { synth.cancel(); } catch (e) { /* nada tocando */ }
+    this.cancelled = false;
+    const pt = (synth.getVoices() || []).filter(v => /^pt/i.test(v.lang)), voice = pt.find(v => /pt[-_]BR/i.test(v.lang)) || pt[0] || null;
+    const chunks = lines.flatMap(l => (l.match(/[^.!?]+[.!?]*\s*/g) || [l]).reduce((a, s) => { if (a.length && (a[a.length - 1] + s).length < 170) a[a.length - 1] += s; else a.push(s); return a; }, []));
+    let i = 0;
+    this.set('speaking');
+    const next = () => {
+      if (this.cancelled || i >= chunks.length) { this.set('idle'); return; }
+      const u = new SpeechSynthesisUtterance(chunks[i++].trim());
+      u.lang = 'pt-BR'; if (voice) u.voice = voice; u.rate = this.prefs.rate;
+      u.onend = next;
+      u.onerror = ev => { if (ev.error !== 'canceled' && ev.error !== 'interrupted') toast('Não consegui ler o resumo agora.'); this.set('idle'); };
+      synth.speak(u);
+    };
+    next();
+  },
+  async pause() { if (this.cloud) { try { await this.cloud.pause(); this.set('paused'); } catch (e) { this.fail(e); } } },
+  async resume() { if (this.cloud) { try { await this.cloud.resume(); this.set('speaking'); } catch (e) { this.fail(e); } } },
+  stop() {
+    this.cancelled = true;
+    if (this.cloud) this.cloud.stop().catch(() => {});
+    else { try { window.speechSynthesis.cancel(); } catch (e) { /* nada tocando */ } this.set('idle'); }
+  },
+};
+
+function briefUnseen() {
+  const B = Store.brief;
+  if (!B || !B.date || B.date !== D.todayKey()) return false;
+  try { return localStorage.getItem('painel-vida:briefSeen') !== String(B.generatedAt); } catch (e) { return true; }
+}
+function topBriefBtn() {
+  const sp = Voice.state === 'speaking' || Voice.state === 'paused', nw = briefUnseen();
+  return `<button class="top-btn ${sp ? 'speaking' : ''}" type="button" data-brief aria-label="Resumo do dia${nw ? ' (novo)' : ''}" title="Resumo do dia">${icon('speaker')}<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span>Resumo</span>${nw ? '<span class="dot-new" aria-hidden="true"></span>' : ''}</button>`;
+}
+
+const Brief = {
+  el: null, onKey: null,
+  open() {
+    if (this.el) return;
+    const B = Store.brief;
+    const el = this.el = document.createElement('div');
+    el.className = 'modal-back';
+    el.innerHTML = `<div class="modal brief-panel" role="dialog" aria-modal="true" aria-label="Resumo do dia">${this.html()}</div>`;
+    document.body.appendChild(el);
+    if (B && B.generatedAt) { try { localStorage.setItem('painel-vida:briefSeen', String(B.generatedAt)); } catch (e) { /* sem armazenamento */ } }
+    const dot = document.querySelector('[data-brief] .dot-new'); if (dot) dot.remove();
+    el.addEventListener('click', e => {
+      if (e.target === el) { this.close(); return; }
+      if (e.target.closest('[data-nav]')) { this.close(); return; } // a tela de destino abre pelo clique global
+      const b = e.target.closest('[data-b]'); if (!b) return;
+      const a = b.dataset.b;
+      if (a === 'close') this.close();
+      else if (a === 'play') Voice.play();
+      else if (a === 'pause') Voice.pause();
+      else if (a === 'resume') Voice.resume();
+      else if (a === 'stop') Voice.stop();
+      else if (a === 'rate') Voice.setRate(Number(b.dataset.v));
+    });
+    el.addEventListener('change', e => { if (e.target.id === 'b-voice') Voice.setVoice(e.target.value); });
+    this.onKey = e => { if (e.key === 'Escape') { e.preventDefault(); this.close(); } }; // preventDefault: fechar o painel não pode encerrar a leitura
+    document.addEventListener('keydown', this.onKey);
+    const first = el.querySelector('[data-b="play"], [data-b="close"]'); if (first) first.focus();
+  },
+  close() {
+    if (!this.el) return;
+    document.removeEventListener('keydown', this.onKey);
+    this.el.remove(); this.el = null;
+  },
+  html() {
+    const B = Store.brief;
+    const head = (title, sub) => `<div class="profile-head"><div><div class="card-title">${esc(title)}</div>${sub ? `<div class="card-sub">${esc(sub)}</div>` : ''}</div><button class="icon-btn plain" type="button" data-b="close" aria-label="Fechar">${icon('x')}</button></div>`;
+    if (!B || !B.date) return `${head('Resumo do dia', 'Chega todo dia de manhã')}<div class="empty">Ainda não há resumo. Todo dia, antes das 5h, o Claude confere o seu e-mail e o painel e deixa aqui o que você precisa fazer, para ler ou ouvir.</div><div class="actions"><button class="btn" type="button" data-b="close">Fechar</button></div>`;
+    const same = B.date === D.todayKey(), when = /^\d{4}-\d{2}-\d{2}$/.test(B.date) ? D.parse(B.date) : D.today();
+    return `${head(same ? 'Resumo do dia' : `Resumo de ${longDate(when)}`, same ? `${longDate(when)} · gerado às ${B.generatedAt ? clockHM(B.generatedAt) : '5h'}` : 'O de hoje chega às 5h')}
+      ${same ? '' : '<span class="badge light" style="align-self:flex-start">desatualizado</span>'}
+      <div id="b-controls">${this.controlsHtml()}</div>
+      <div class="brief-body">${briefBodyHtml(B)}</div>`;
+  },
+  controlsHtml() {
+    const eng = Voice.engine(), st = Voice.state, active = st === 'speaking' || st === 'paused';
+    if (eng === 'none') return '<div class="small muted">Este navegador não lê em voz alta aqui. O resumo está escrito logo abaixo.</div>';
+    const rates = [0.9, 1, 1.25].map(r => `<button class="pill ${Math.abs(Voice.prefs.rate - r) < 0.01 ? 'active' : ''}" type="button" data-b="rate" data-v="${r}" aria-label="Velocidade ${String(r).replace('.', ',')}">${String(r).replace('.', ',')}×</button>`).join('');
+    const voices = Voice.cloud && Voice.voices.length > 1 ? `<select class="input sm" id="b-voice" aria-label="Voz" style="width:auto">${Voice.voices.map(v => `<option value="${v}" ${v === Voice.prefs.voice ? 'selected' : ''}>${VOICE_NAMES[v] || v}</option>`).join('')}</select>` : '';
+    const main = active
+      ? `${st === 'paused' ? '<button class="btn" type="button" data-b="resume">Continuar</button>' : (Voice.cloud ? '<button class="btn ghost" type="button" data-b="pause">Pausar</button>' : '')}<button class="btn ghost" type="button" data-b="stop">${icon('stop')} Parar</button>`
+      : `<button class="btn" type="button" data-b="play">${icon('speaker')} Ouvir o resumo</button>`;
+    return `<div class="audio-bar">${main}<div class="pills on-card" role="group" aria-label="Velocidade">${rates}</div>${voices}</div>${Voice.cloud ? '' : '<div class="small muted">Usando a voz do navegador.</div>'}`;
+  },
+  controls() { const c = this.el && this.el.querySelector('#b-controls'); if (c) c.innerHTML = this.controlsHtml(); },
+};
 
 Views.visao = () => {
   const S = Store.state, s = S.settings, ui = UI.state, today = D.today(), mon = D.monday(today);
@@ -1474,7 +1652,6 @@ Views.visao = () => {
 
   return `
   ${pageHeader({ eyebrow: 'Visão geral', title: s.name ? `Olá, ${s.name}` : 'Painel da Vida', desc: 'Cinco pilares, um plano de ação e a evolução de cada um. Toque em um pilar para abrir os detalhes.', right: `<span class="date-pill">${icon('calendar')} ${esc(rangeLabel(mon))}</span>` })}
-  ${briefCard()}
   <div class="stats">
     ${statCard({ label: 'Consistência da semana', value: ok, unit: `/ ${total} pilares em dia`, foot: footText(`${longDate(today)} · semana em andamento`), dark: true })}
     ${statCard({ label: 'Saldo do mês', value: brl(saldo), foot: Calc.income(mk) ? footText(`${Math.round((saldo / Calc.income(mk)) * 100)}% da receita`) : footText('informe a receita no Financeiro') })}
@@ -2247,7 +2424,7 @@ Views.config = () => {
         <button class="btn danger" data-action="clearAll">Apagar tudo e começar do zero</button>
       </div>` })}
   ${card({ title: 'Resumo diário', sub: 'Todo dia, antes das 5h da manhã',
-    body: `<p class="desc">O Claude confere o seu Gmail (e-mails da Gerar na caixa de entrada) e o que está no painel, e deixa na Visão geral o que você precisa fazer no dia. Não envia nem altera nada no seu e-mail.</p>
+    body: `<p class="desc">O Claude confere o seu Gmail (e-mails da Gerar na caixa de entrada) e o que está no painel, e deixa o resumo no botão "Resumo", no topo da tela, onde também dá para ouvi-lo em áudio. Não envia nem altera nada no seu e-mail.</p>
       <div class="row-meta">${Store.mode !== 'cloud' ? 'Disponível só abrindo o painel pelo link no Claude.' : Store.brief && Store.brief.generatedAt ? `Último resumo: ${new Date(Store.brief.generatedAt).toLocaleDateString('pt-BR')} às ${clockHM(Store.brief.generatedAt)}` : 'Nenhum resumo gerado ainda.'}</div>` })}`;
 };
 
@@ -2287,7 +2464,7 @@ function render() {
     $main.innerHTML = `<div class="loading"><div class="card"><div class="card-title">Abrindo seu painel…</div><p class="desc" style="margin-top:8px">${esc(Store.loadNote || 'Buscando seus dados salvos no Claude.')}</p></div></div>`;
     return;
   }
-  let top = `<div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">${Focus.t ? `<a class="focus-chip" href="#estudos">${icon('timer')}<span id="focus-mini">${fmtClock(Focus.target() ? Focus.target() * 60000 - Focus.elapsed() : Focus.elapsed())}</span> em foco</a>` : ''}${syncBadge()}<button class="avatar" type="button" data-profile aria-label="Meu perfil" title="Meu perfil">${avatarHtml()}</button></div>`;
+  let top = `<div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">${Focus.t ? `<a class="focus-chip" href="#estudos">${icon('timer')}<span id="focus-mini">${fmtClock(Focus.target() ? Focus.target() * 60000 - Focus.elapsed() : Focus.elapsed())}</span> em foco</a>` : ''}${syncBadge()}${Store.mode === 'cloud' ? topBriefBtn() : ''}<button class="avatar" type="button" data-profile aria-label="Meu perfil" title="Meu perfil">${avatarHtml()}</button></div>`;
   const fresh = Store.state.demands.filter(d => !d.seen);
   if (fresh.length && r !== 'trabalho') { const last = fresh.reduce((a, b) => (b.date > a.date ? b : a)); top += `<div class="alert" role="status">${icon('mail')}<span><b>${fresh.length === 1 ? 'Nova demanda' : `${fresh.length} novas demandas`}</b> de ${esc(last.from || 'trabalho')}: ${esc(last.subject)}</span><button class="btn sm" data-nav="trabalho">Ver</button></div>`; }
   const ba = r === 'visao' || r === 'financeiro' ? Calc.budgetAlerts() : [];
@@ -2687,6 +2864,7 @@ document.addEventListener('click', e => {
     return;
   }
   if (e.target.closest('[data-profile]')) { Profile.open(); return; }
+  if (e.target.closest('[data-brief]')) { Brief.open(); return; }
   const nav = e.target.closest('[data-nav]');
   if (nav) { e.preventDefault(); location.hash = nav.dataset.nav; return; }
   const el = e.target.closest('[data-action]');
@@ -2725,6 +2903,7 @@ window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); }
 
 render();
 boot();
+Voice.init();
 /* Atualiza o relógio do expediente a cada minuto */
 setInterval(() => { if (Store.mode !== 'loading' && !UI.modal && ['trabalho', 'visao', 'tarefas'].includes(route())) safeRender(); }, 60000);
 if (window.claude && typeof window.claude.use === 'function') {
