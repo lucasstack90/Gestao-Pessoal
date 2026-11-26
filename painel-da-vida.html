@@ -1481,16 +1481,18 @@ function briefScript(B) {
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(B.date || ''), same = validDate && B.date === D.todayKey();
   const speech = typeof B.speech === 'string' ? B.speech.split(/\n+/).map(x => x.trim()).filter(Boolean) : [];
   if (speech.length && same) return speech.flatMap(l => packLines([l])).map(spokenText).filter(Boolean).map(t => t.slice(0, 1900));
-  const lines = [`${hi}, senhor. ${same ? `O seu resumo de ${longDate(D.today())} está pronto.` : validDate ? `Atenção, senhor: este resumo é de ${longDate(D.parse(B.date))}, não é de hoje.` : 'Este é o seu último resumo, senhor.'}`];
+  const now = new Date(), nh = now.getHours(), nm = now.getMinutes();
+  const clk = nh === 0 && nm === 0 ? 'É meia-noite' : nh === 1 ? 'É uma hora' : `São ${nh} horas`;
+  const lines = [`${hi}, senhor. ${same ? `${clk}${nm ? ` e ${nm} ${nm === 1 ? 'minuto' : 'minutos'}` : ''}. O seu resumo de ${longDate(D.today())} está pronto.` : validDate ? `Atenção, senhor: este resumo é de ${longDate(D.parse(B.date))}, não é de hoje.` : 'Este é o seu último resumo, senhor.'}`];
   if (B.headline) lines.push(B.headline);
   if (B.summary) lines.push(B.summary);
   const pr = (Array.isArray(B.priorities) ? B.priorities : []).slice(0, 10).map((p, i) => `${ORD[i]}: ${p.title}.${p.detail ? ` ${p.detail}` : ''}`);
-  if (pr.length) lines.push(...packLines(['O que fazer hoje.', ...pr]));
+  if (pr.length) lines.push(...packLines(['Se me permite, senhor, sugiro esta ordem para hoje.', ...pr]));
   const em = (Array.isArray(B.emails) ? B.emails : []).slice(0, 8).map(m => `De ${m.from || 'remetente desconhecido'}: ${m.subject || 'sem assunto'}.${m.ask ? ` ${m.ask}` : ''}`);
-  if (em.length) lines.push(...packLines(['Demandas do e-mail.', ...em]));
+  if (em.length) lines.push(...packLines(['Chegaram demandas no seu e-mail, senhor.', ...em]));
   const wt = (Array.isArray(B.watch) ? B.watch : []).slice(0, 6);
-  if (wt.length) lines.push(...packLines(['Atenção.', ...wt.map(w => (/[.!?]$/.test(w) ? w : `${w}.`))]));
-  lines.push('Esse foi o resumo, senhor. Estou à disposição.');
+  if (wt.length) lines.push(...packLines(['Devo ressaltar, senhor.', ...wt.map(w => (/[.!?]$/.test(w) ? w : `${w}.`))]));
+  lines.push('Esse foi o resumo, senhor. Às suas ordens.');
   return lines.map(spokenText).filter(Boolean).map(t => t.slice(0, 1900));
 }
 const VOICE_NAMES = { buttery: 'Voz 1', airy: 'Voz 2', glassy: 'Voz 3', rounded: 'Voz 4' };
