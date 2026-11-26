@@ -129,3 +129,9 @@ O cartão "Resumo do dia" saiu da Visão geral. Agora há um botão **Resumo** n
 ## Rascunho de formulários
 
 Antes, qualquer clique fora do formulário (marcar tarefa, trocar de dia, atualização automática) redesenhava a tela e apagava o que estava preenchido em "Nova tarefa". Agora o painel guarda o rascunho de todos os formulários e o devolve após cada redesenho; ele só é limpo quando você envia. Enquanto você está em um campo de texto, horário, número ou seleção, a atualização automática de 60 s espera.
+
+## Estilo JARVIS
+
+O resumo falado agora trata você por "senhor" ("Bom dia, senhor. O seu resumo de quinta-feira… Estou à disposição."). O documento `brief` pode trazer:
+- `speech`: texto já pronto para ser falado, no tom de assistente (a rotina das 5h escreve). Se existir, é ele que as vozes leem; se não, o painel monta o roteiro padrão.
+- `audio`: `{ url, gen }` com um arquivo de áudio gerado numa voz do ElevenLabs. O painel só toca o arquivo se `gen` for igual ao `generatedAt` do resumo e for de hoje; se falhar, volta para a voz do Claude ou do navegador. Como é um arquivo, funciona também no Safari, no Firefox e no celular.

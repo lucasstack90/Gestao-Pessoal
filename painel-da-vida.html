@@ -1479,7 +1479,9 @@ function briefScript(B) {
   const S = Store.state, h = new Date().getHours(), first = (S.settings.name || '').trim().split(/\s+/)[0];
   const hi = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(B.date || ''), same = validDate && B.date === D.todayKey();
-  const lines = [`${hi}${first ? `, ${first}` : ''}. ${same ? `Este é o seu resumo de ${longDate(D.today())}.` : validDate ? `Atenção: este resumo é de ${longDate(D.parse(B.date))}, não é de hoje.` : 'Este é o seu último resumo.'}`];
+  const speech = typeof B.speech === 'string' ? B.speech.split(/\n+/).map(x => x.trim()).filter(Boolean) : [];
+  if (speech.length && same) return speech.flatMap(l => packLines([l])).map(spokenText).filter(Boolean).map(t => t.slice(0, 1900));
+  const lines = [`${hi}, senhor. ${same ? `O seu resumo de ${longDate(D.today())} está pronto.` : validDate ? `Atenção, senhor: este resumo é de ${longDate(D.parse(B.date))}, não é de hoje.` : 'Este é o seu último resumo, senhor.'}`];
   if (B.headline) lines.push(B.headline);
   if (B.summary) lines.push(B.summary);
   const pr = (Array.isArray(B.priorities) ? B.priorities : []).slice(0, 10).map((p, i) => `${ORD[i]}: ${p.title}.${p.detail ? ` ${p.detail}` : ''}`);
@@ -1488,7 +1490,7 @@ function briefScript(B) {
   if (em.length) lines.push(...packLines(['Demandas do e-mail.', ...em]));
   const wt = (Array.isArray(B.watch) ? B.watch : []).slice(0, 6);
   if (wt.length) lines.push(...packLines(['Atenção.', ...wt.map(w => (/[.!?]$/.test(w) ? w : `${w}.`))]));
-  lines.push('Esse foi o resumo do dia.');
+  lines.push('Esse foi o resumo, senhor. Estou à disposição.');
   return lines.map(spokenText).filter(Boolean).map(t => t.slice(0, 1900));
 }
 const VOICE_NAMES = { buttery: 'Voz 1', airy: 'Voz 2', glassy: 'Voz 3', rounded: 'Voz 4' };
@@ -1506,18 +1508,20 @@ const Voice = {
     }
     Brief.controls();
   },
-  engine() { return this.cloud ? 'cloud' : (window.speechSynthesis && window.SpeechSynthesisUtterance ? 'browser' : 'none'); },
+  fileUrl() { const B = Store.brief, a = B && B.audio; return a && typeof a.url === 'string' && /^https:\/\//.test(a.url) && a.gen === B.generatedAt && B.date === D.todayKey() && !this.fileFailed ? a.url : ''; },
+  engine() { return this.fileUrl() ? 'file' : this.cloud ? 'cloud' : (window.speechSynthesis && window.SpeechSynthesisUtterance ? 'browser' : 'none'); },
   set(st) {
     this.state = st; Brief.controls();
     const b = document.querySelector('[data-brief]'); if (b) b.classList.toggle('speaking', st === 'speaking' || st === 'paused');
   },
   save() { try { localStorage.setItem(VOICE_KEY, JSON.stringify(this.prefs)); } catch (e) { /* sem armazenamento */ } },
-  setRate(r) { this.prefs.rate = r; this.save(); if (this.cloud && this.cloud.setRate) { try { this.cloud.setRate(r); } catch (e) { /* mantém */ } } Brief.controls(); },
+  setRate(r) { this.prefs.rate = r; this.save(); if (this.audio) this.audio.playbackRate = r; if (this.cloud && this.cloud.setRate) { try { this.cloud.setRate(r); } catch (e) { /* mantém */ } } Brief.controls(); },
   setVoice(v) { this.prefs.voice = v; this.save(); },
   async play() {
     const B = Store.brief; if (!B) return;
     const lines = briefScript(B); if (!lines.length) return;
-    const eng = this.engine();
+    let eng = this.engine();
+    if (eng === 'file') { if (await this.playFile()) return; eng = this.engine(); }
     if (eng === 'cloud') {
       try {
         this.set('speaking');
@@ -1526,6 +1530,23 @@ const Voice = {
     } else if (eng === 'browser') this.playBrowser(lines);
     else toast('Este navegador não lê em voz alta aqui. O texto está na tela.');
   },
+  async playFile() {
+    try {
+      this.stopFile();
+      const a = this.audio = new Audio(this.fileUrl());
+      a.playbackRate = this.prefs.rate;
+      a.onended = () => { if (this.audio === a) { this.audio = null; this.set('idle'); } };
+      a.onerror = () => { if (this.audio === a) { this.audio = null; this.set('idle'); } };
+      this.set('speaking');
+      await a.play();
+      return true;
+    } catch (e) {
+      this.audio = null; this.fileFailed = true; this.set('idle');
+      if (!(e && e.name === 'NotAllowedError')) toast('Não consegui tocar o áudio. Vou usar outra voz.');
+      return e && e.name === 'NotAllowedError';
+    }
+  },
+  stopFile() { if (this.audio) { const a = this.audio; this.audio = null; try { a.pause(); } catch (e) { /* já parou */ } } },
   fail(e) {
     const c = e && e.code;
     if (c === 'stopped') return;
@@ -1550,10 +1571,11 @@ const Voice = {
     };
     next();
   },
-  async pause() { if (this.cloud) { try { await this.cloud.pause(); this.set('paused'); } catch (e) { this.fail(e); } } },
-  async resume() { if (this.cloud) { try { await this.cloud.resume(); this.set('speaking'); } catch (e) { this.fail(e); } } },
+  async pause() { if (this.audio) { this.audio.pause(); this.set('paused'); return; } if (this.cloud) { try { await this.cloud.pause(); this.set('paused'); } catch (e) { this.fail(e); } } },
+  async resume() { if (this.audio) { try { await this.audio.play(); this.set('speaking'); } catch (e) { this.set('idle'); } return; } if (this.cloud) { try { await this.cloud.resume(); this.set('speaking'); } catch (e) { this.fail(e); } } },
   stop() {
     this.cancelled = true;
+    if (this.audio) { this.stopFile(); this.set('idle'); return; }
     if (this.cloud) this.cloud.stop().catch(() => {});
     else { try { window.speechSynthesis.cancel(); } catch (e) { /* nada tocando */ } this.set('idle'); }
   },
@@ -1616,11 +1638,11 @@ const Brief = {
     const eng = Voice.engine(), st = Voice.state, active = st === 'speaking' || st === 'paused';
     if (eng === 'none') return '<div class="small muted">Este navegador não lê em voz alta aqui. O resumo está escrito logo abaixo.</div>';
     const rates = [0.9, 1, 1.25].map(r => `<button class="pill ${Math.abs(Voice.prefs.rate - r) < 0.01 ? 'active' : ''}" type="button" data-b="rate" data-v="${r}" aria-label="Velocidade ${String(r).replace('.', ',')}">${String(r).replace('.', ',')}×</button>`).join('');
-    const voices = Voice.cloud && Voice.voices.length > 1 ? `<select class="input sm" id="b-voice" aria-label="Voz" style="width:auto">${Voice.voices.map(v => `<option value="${v}" ${v === Voice.prefs.voice ? 'selected' : ''}>${VOICE_NAMES[v] || v}</option>`).join('')}</select>` : '';
+    const voices = eng === 'cloud' && Voice.voices.length > 1 ? `<select class="input sm" id="b-voice" aria-label="Voz" style="width:auto">${Voice.voices.map(v => `<option value="${v}" ${v === Voice.prefs.voice ? 'selected' : ''}>${VOICE_NAMES[v] || v}</option>`).join('')}</select>` : '';
     const main = active
-      ? `${st === 'paused' ? '<button class="btn" type="button" data-b="resume">Continuar</button>' : (Voice.cloud ? '<button class="btn ghost" type="button" data-b="pause">Pausar</button>' : '')}<button class="btn ghost" type="button" data-b="stop">${icon('stop')} Parar</button>`
+      ? `${st === 'paused' ? '<button class="btn" type="button" data-b="resume">Continuar</button>' : (Voice.cloud || Voice.audio ? '<button class="btn ghost" type="button" data-b="pause">Pausar</button>' : '')}<button class="btn ghost" type="button" data-b="stop">${icon('stop')} Parar</button>`
       : `<button class="btn" type="button" data-b="play">${icon('speaker')} Ouvir o resumo</button>`;
-    return `<div class="audio-bar">${main}<div class="pills on-card" role="group" aria-label="Velocidade">${rates}</div>${voices}</div>${Voice.cloud ? '' : '<div class="small muted">Usando a voz do navegador.</div>'}`;
+    return `<div class="audio-bar">${main}<div class="pills on-card" role="group" aria-label="Velocidade">${rates}</div>${voices}</div>${eng === 'file' ? '<div class="small muted">Voz do assistente.</div>' : Voice.cloud ? '' : '<div class="small muted">Usando a voz do navegador.</div>'}`;
   },
   controls() { const c = this.el && this.el.querySelector('#b-controls'); if (c) c.innerHTML = this.controlsHtml(); },
 };
