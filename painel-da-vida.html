@@ -2452,6 +2452,39 @@ function sidebarHtml(r) {
     <nav class="nav nav-bottom" aria-label="Configurações">${link('config', 'Configurações', 'sliders')}</nav>`;
 }
 
+/* Rascunho de formulários: render() recria a tela inteira; sem isso, qualquer clique em outro
+   lugar apagaria o que já foi preenchido em "Nova tarefa" etc. */
+const Drafts = {
+  skip: false,
+  keyOf(f, i) { return (f.dataset.submit || '') + '#' + i; },
+  capture() {
+    const out = {};
+    const seen = {};
+    $main.querySelectorAll('form[data-submit]').forEach(f => {
+      const n = f.dataset.submit; seen[n] = (seen[n] || 0) + 1;
+      const vals = {};
+      f.querySelectorAll('input[name], select[name], textarea[name]').forEach(c => {
+        if (c.type === 'file' || c.type === 'password' || c.type === 'hidden') return;
+        if (c.type === 'checkbox' || c.type === 'radio') { if (c.checked !== c.defaultChecked) vals[c.name + '|' + c.value] = { c: c.checked }; }
+        else if (c.tagName === 'SELECT') { const o = c.options[c.selectedIndex]; if (o && !o.defaultSelected) vals[c.name] = { v: c.value }; }
+        else if (c.value !== c.defaultValue) vals[c.name] = { v: c.value };
+      });
+      if (Object.keys(vals).length) out[n + '#' + (seen[n] - 1)] = vals;
+    });
+    return out;
+  },
+  restore(d) {
+    const seen = {};
+    $main.querySelectorAll('form[data-submit]').forEach(f => {
+      const n = f.dataset.submit; seen[n] = (seen[n] || 0) + 1;
+      const vals = d[n + '#' + (seen[n] - 1)]; if (!vals) return;
+      f.querySelectorAll('input[name], select[name], textarea[name]').forEach(c => {
+        if (c.type === 'checkbox' || c.type === 'radio') { const v = vals[c.name + '|' + c.value]; if (v) c.checked = v.c; }
+        else { const v = vals[c.name]; if (v) c.value = v.v; }
+      });
+    });
+  },
+};
 function render() {
   const r = route();
   const active = document.activeElement, focusKey = active && active.dataset ? active.dataset.k : null;
@@ -2471,7 +2504,9 @@ function render() {
   if (ba.length) top += `<div class="alert warn" role="status">${icon('alert')}<span><b>${ba.length === 1 ? 'Limite de categoria' : `${ba.length} categorias perto do limite`}</b> neste mês: ${ba.slice(0, 3).map(x => `${esc(x.name)} ${Math.round(x.pct)}% (${brl(x.eff)} de ${brl(x.limit)})`).join(' · ')}${ba.length > 3 ? ` · e mais ${ba.length - 3}` : ''}</span>${r === 'visao' ? '<button class="btn sm" data-nav="financeiro">Ver</button>' : ''}</div>`;
   if (Store.state.sample) top += `<div class="banner"><span>Você está vendo <b>dados de exemplo</b>. Quando quiser, comece com os seus.</span><button class="btn sm" data-action="clearSample">Começar do zero</button></div>`;
   else if (Store.fresh && r === 'visao') top += `<section class="card welcome"><div><div class="card-title">Bem-vindo ao seu Painel da Vida</div><p>Comece criando sua rotina em Tarefas, marcando um treino em Saúde ou lançando a receita do mês em Financeiro. Se preferir conhecer o painel antes, carregue dados de exemplo.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-nav="config">Definir minhas metas</button><button class="btn ghost" data-action="loadSample">Ver exemplo</button></div></section>`;
+  const drafts = Drafts.skip ? {} : Drafts.capture(); Drafts.skip = false;
   $main.innerHTML = top + Views[r]();
+  Drafts.restore(drafts);
   if (focusKey) { const el = $main.querySelector(`[data-k="${CSS.escape(focusKey)}"]`); if (el) el.focus({ preventScroll: true }); }
   const p = pillar(r);
   const pre = fresh.length && r !== 'trabalho' ? `(${fresh.length}) ` : '';
@@ -2479,7 +2514,7 @@ function render() {
 }
 function safeRender() {
   const a = document.activeElement;
-  if (a && a.matches && a.matches('textarea, input[type="text"], input:not([type])') && $main.contains(a)) { UI.renderOnBlur = true; return; }
+  if (a && a.matches && a.matches('textarea, input[type="text"], input:not([type]), input[type="time"], input[type="number"], select') && $main.contains(a)) { UI.renderOnBlur = true; return; }
   render();
 }
 document.addEventListener('focusout', () => { if (UI.renderOnBlur) { UI.renderOnBlur = false; setTimeout(render, 0); } });
@@ -2884,6 +2919,7 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   const fn = Forms[form.dataset.submit]; if (!fn) return;
   if (fn(Object.fromEntries(new FormData(form)), form.dataset) === false) return;
+  Drafts.skip = true;
   commit();
 });
 document.addEventListener('change', e => {

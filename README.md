@@ -125,3 +125,7 @@ O cartão "Resumo do dia" saiu da Visão geral. Agora há um botão **Resumo** n
 - A leitura é um roteiro em português natural ("Bom dia, Lucas…", horas e valores falados por extenso). Fechar o painel não interrompe a leitura; o botão do topo mostra que ela está tocando.
 - Voz do Claude (capacidade `tts`) funciona em Chrome/Edge no desktop. Em Safari, Firefox e apps móveis do Claude usa-se a voz do navegador; se nem isso existir, o texto continua na tela.
 - Não toca sozinho: o navegador exige um toque para começar.
+
+## Rascunho de formulários
+
+Antes, qualquer clique fora do formulário (marcar tarefa, trocar de dia, atualização automática) redesenhava a tela e apagava o que estava preenchido em "Nova tarefa". Agora o painel guarda o rascunho de todos os formulários e o devolve após cada redesenho; ele só é limpo quando você envia. Enquanto você está em um campo de texto, horário, número ou seleção, a atualização automática de 60 s espera.
